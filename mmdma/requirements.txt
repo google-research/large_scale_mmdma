@@ -2,7 +2,7 @@ absl-py
 google-cloud-storage
 numpy>=1.18.4
 torch
-tensorflow-cpu==2.4
+tensorflow-cpu>=2.5.1
 pykeops==1.5
 typing==3.7.4.3
 dataclasses==0.6

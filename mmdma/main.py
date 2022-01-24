@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google LLC.
+# Copyright 2022 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ python3 -m trainer.main -- --output_dir dir1/dir2 \
 --data branch --n 300 --p 400 \
 --k 4 --ns 100 \
 --e 10001 --d 5 --nr 1000 --ne 1000 --keops True --dual False --pca 1000 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1. --init 'uniform'
 
 """
 import os
