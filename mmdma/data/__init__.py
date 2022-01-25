@@ -14,5 +14,3 @@
 # limitations under the License.
 
 """Large scale MMDMA library."""
-
-from .version import __version__

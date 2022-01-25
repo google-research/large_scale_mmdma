@@ -73,10 +73,10 @@ def save_pca(
     rd_vec: np.ndarray
     ):
   """Saves model parameters."""
-  filename_pca = f'{filename}_pca'
+  filename_pca = f'{filename}_pca.npy'
   with gfile.GFile(os.path.join(path, filename_pca), 'w') as my_file:
     np.save(my_file, np.array(pca_results))
-  filename_rdvec = f'{filename}_rdvec'
+  filename_rdvec = f'{filename}_rdvec.npy'
   with gfile.GFile(os.path.join(path, filename_rdvec), 'w') as my_file:
     np.save(my_file, rd_vec)
 

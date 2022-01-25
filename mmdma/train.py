@@ -302,6 +302,7 @@ def _evaluate(
     evaluation_matching: DefaultDict[str, List[float]],
     pca_results: Tuple[np.ndarray],
     cfg_model: ModelGetterConfig,
+    summary_writer: tensorboard.SummaryWriter,
     workdir: str
     ) -> Tuple[DefaultDict[str, List[float]],
                DefaultDict[str, List[float]], Tuple[np.ndarray]]:
@@ -322,6 +323,7 @@ def _evaluate(
     evaluation_matching: records the metrics during training.
     pca_results: records results of PCA on embeddings during training.
     cfg_model: contains the parameters of the model and algorithm.
+    summary_writer: summary writer for tensorboard.
     workdir: directory where the files are saved.
 
   Returns:
@@ -333,17 +335,15 @@ def _evaluate(
   @retry(stop=stop_after_attempt(3))
   def init_summary():
     # Used for internal purposes.
-    if (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir:
+    if (i == 0
+        and (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir):
       summary_writer = tensorboard.SummaryWriter(workdir)
       return summary_writer
     else:
       return None
 
-  summary_writer = init_summary()
-  # if (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir:
-  #   summary_writer = tensorboard.SummaryWriter(workdir)
-    # TODO(lpapaxanthos): add:
-    # summary_writer.add_hparams(dataclasses.asdict(cfg_model), {}).
+  if i == 0:
+    summary_writer = init_summary()
 
   # Records loss.
   if cfg_model.n_record != 0 and i % cfg_model.n_record == 0:
@@ -355,10 +355,10 @@ def _evaluate(
       summary_writer.flush()
 
   # Saves evaluation metrics.
-  if cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0 and i != 0:
+  if cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0:
     weights1, weights2 = list(model.parameters())
-    embeddings_fv = torch.matmul(first_view, weights1).detach().cpu()
-    embeddings_sv = torch.matmul(second_view, weights2).detach().cpu()
+    embeddings_fv = torch.matmul(first_view, weights1)
+    embeddings_sv = torch.matmul(second_view, weights2)
     eval_out = eval_fn.compute_all_evaluation(embeddings_fv, embeddings_sv)
     eval_out_dict = dataclasses.asdict(eval_out)
     logging.info('Train evaluation: %s.', eval_out)
@@ -380,7 +380,7 @@ def _evaluate(
   if (i == cfg_model.n_iter - 1
       and (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir):
     summary_writer.close()
-  return evaluation_loss, evaluation_matching, pca_results
+  return evaluation_loss, evaluation_matching, pca_results, summary_writer
 
 
 def train_and_evaluate(
@@ -420,13 +420,15 @@ def train_and_evaluate(
       inner_workdir: str = ''
       ) -> Any:
 
-    evaluation_loss_output = ddict(list)
-    evaluation_matching_output = ddict(list)
-    pca_results_output = list()
+    evaluation_loss = ddict(list)
+    evaluation_matching = ddict(list)
+    pca_results = list()
 
     torch.manual_seed(key)
     random.seed(key + 1)
     np.random.seed(key + 2)
+
+    summary_writer = None
 
     model = Model(cfg_model,
                   n_sample1,
@@ -450,15 +452,15 @@ def train_and_evaluate(
 
       if evaluation:
         out = _evaluate(i, first_view, second_view, model, eval_fn, loss,
-                        loss_components, evaluation_loss_output,
-                        evaluation_matching_output,
-                        pca_results_output, cfg_model, workdir=inner_workdir)
-        evaluation_loss_output, evaluation_matching_output, pca_results_output = out
+                        loss_components, evaluation_loss,
+                        evaluation_matching, pca_results, cfg_model,
+                        summary_writer, workdir=inner_workdir)
+        evaluation_loss, evaluation_matching, pca_results, summary_writer = out
 
     if evaluation:
       return (loss, loss_components, optimizer, model,
-              evaluation_loss_output, evaluation_matching_output,
-              pca_results_output)
+              evaluation_loss, evaluation_matching,
+              pca_results)
     else:
       return loss, loss_components, optimizer, model
 

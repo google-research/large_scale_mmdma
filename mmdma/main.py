@@ -19,31 +19,31 @@ Instructions:
 
 1. To run the algorithm on simulated data from data_pipeline.py:
 
-python3 -m trainer.main -- --output_dir dir1/dir2 \
+python3 -m mmdma.main --output_dir outdir \
 --data branch --n 300 --p 400 \
---k 4 --ns 100 \
---e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0
+--k 4 --ns 5 \
+--e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
 
 2. To run the algorithm on user input data, in the form n_sample x p_feature.
 --data should be '' (default value) and --kernel should be False. The
 argument --keops can be True or False, --mode can be 'dual' or 'primal'.
 
-python3 -m trainer.main -- --output_dir dir1/dir2 \
+python3 -m mmdma.main --input_dir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel False \
---k 4 --ns 100 \
---e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1. --init 'uniform'
+--k 4 --ns 5 \
+--e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
 
 3. To run the algorithm on user kernel data, in the form n_sample x n_sample.
 --data should be '' (default value) and --kernel should be True. The
 argument --keops can be True or False, --mode can only be `dual`.
 
-python3 -m trainer.main -- --output_dir dir1/dir2 \
+python3 -m mmdma.main --inputdir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel True \
---k 4 --ns 100 \
---e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.
+--k 4 --ns 5 \
+--e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
 """
 import os
 
@@ -76,7 +76,7 @@ flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')
 
 # Random seeds.
 flags.DEFINE_integer('k', 4, 'Seed.')
-flags.DEFINE_integer('ns', 100, 'Number of seeds with which to run the model.')
+flags.DEFINE_integer('ns', 5, 'Number of seeds with which to run the model.')
 
 # Flags for training and evaluation.
 flags.DEFINE_integer('e', 10001, 'Number of epochs.')
@@ -103,13 +103,12 @@ FLAGS = flags.FLAGS
 def main(_):
   tf.config.experimental.set_visible_devices([], 'GPU')
   logging.info('cuda is available: %s', torch.cuda.is_available())
-  logging.info('device name is: %s', torch.cuda.get_device_name(0))
   logging.info('size of dataset: %s x %s', FLAGS.n, FLAGS.p)
 
   # Gets input data.
   if FLAGS.data:
     first_view, second_view, rd_vec = data_pipeline.generate_data(
-        FLAGS.n, FLAGS.p, simulation=FLAGS.data, implementation='pytorch')
+        FLAGS.n, FLAGS.p, simulation=FLAGS.data)
   else:
     first_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_fv)
     second_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_sv)
@@ -121,35 +120,34 @@ def main(_):
   # Creates output directory and filename.
   gfile.makedirs(FLAGS.output_dir)
   logging.info('output directory: %s', FLAGS.output_dir)
-  if FLAGS.input_fv:
-    filename = ':'.join(['m' + str(FLAGS.m),
-                         'keops' + str(FLAGS.keops),
-                         'ni' + str(FLAGS.e),
-                         'k' + str(FLAGS.k),
-                         'ns' + str(FLAGS.ns),
-                         'lr' + str(FLAGS.lr),
-                         's' + str(FLAGS.s),
-                         'l1' + str(FLAGS.l1),
-                         'l2' + str(FLAGS.l2),
-                         'i' + str(FLAGS.init),
-                         FLAGS.input_fv.split('.')[0]])
-  else:
-    filename = ':'.join(['m' + str(FLAGS.m),
-                         'keops' + str(FLAGS.keops),
+  filename = ':'.join(['m' + str(FLAGS.m),
+                       'keops' + str(FLAGS.keops),
+                       'ni' + str(FLAGS.e),
+                       'k' + str(FLAGS.k),
+                       'ns' + str(FLAGS.ns),
+                       'lr' + str(FLAGS.lr),
+                       's' + str(FLAGS.s),
+                       'l1' + str(FLAGS.l1),
+                       'l2' + str(FLAGS.l2),
+                       'i' + str(FLAGS.init)])
+  if FLAGS.data:
+    filename = ':'.join([filename,
                          'n' + str(FLAGS.n),
-                         'ni' + str(FLAGS.e),
-                         'k' + str(FLAGS.k),
-                         'ns' + str(FLAGS.ns),
                          'p' + str(FLAGS.p),
-                         'lr' + str(FLAGS.lr),
-                         's' + str(FLAGS.s),
-                         'l1' + str(FLAGS.l1),
-                         'l2' + str(FLAGS.l2),
-                         'i' + str(FLAGS.init),
                          str(FLAGS.data)])
+  else:
+    filename = ':'.join([filename,
+                         FLAGS.input_fv.split('.')[0]])
+
+  # Chooses device.
+  if torch.cuda.is_available():
+    device = torch.device('cuda')
+  else:
+    device = 'cpu'
 
   # Prepares metrics.
-  eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec)
+  eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec,
+                                 device=device)
 
   # Sets the hyperparameters of the model.
   cfg_model = train.ModelGetterConfig(
@@ -170,7 +168,6 @@ def main(_):
       )
 
   # Moves input to device.
-  device = torch.device('cuda')
   first_view = torch.FloatTensor(first_view).to(device)
   second_view = torch.FloatTensor(second_view).to(device)
   if cfg_model.mode == 'dual' and not FLAGS.kernel:

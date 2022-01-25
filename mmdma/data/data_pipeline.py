@@ -31,7 +31,6 @@ def generate_data(
     random_seed: int = 4,
     random_seed_ext: int = 5,
     simulation: str = 'branch',
-    implementation: str = 'pytorch'
     ) -> Union[Tuple[jnp.ndarray], Tuple[torch.Tensor]]:
   """Generates two views following the shape of a branch in their latent space.
 
@@ -50,7 +49,6 @@ def generate_data(
     tuple, first view, second view and corresponding indices from the first
       view.
   """
-  assert n_sample % 4 == 0, 'n_sample must be divisible by 4.'
   latent_dim = 2
   # TODO(lpapaxanthos): allow for different number of features.
   p_features1 = p_feature
@@ -62,12 +60,14 @@ def generate_data(
     covs = [[[8, 0], [0, 0.05]],
             [[1.7, -1.5], [-1.5, 1.7]],
             [[1.7, 1.5], [1.5, 1.7]]]
-    shapes = [2 * int(n_sample / 4), int(n_sample / 4), int(n_sample / 4)]
+    n1 = int(n_sample / 4)
+    shapes = [2 * n1, n1, n - 3 * n1]
     rot = None
   elif simulation == 'branch':
     means = [[0, 0], [0, 8]]
     covs = [[[20, 0], [0, 1]], [[1, 0], [0, 10]]]
-    shapes = [int(n_sample / 4 * 3), int(n_sample / 4 * 1)]
+    n1 = int(n_sample / 4 * 3)
+    shapes = [n1, n_sample - n1]
     rot = np.array([[np.cos(np.pi/4.), -np.sin(np.pi/4.)],
                     [np.sin(np.pi/4.), np.cos(np.pi/4.)]])
   else:
@@ -75,63 +75,33 @@ def generate_data(
 
   length = len(means)
 
-  if implementation == 'jax':
-    nkey = random_seed
-    key = jax.random.PRNGKey(nkey)
-    key, *subkeys = jax.random.split(key, 8)
-    axis = [0] * length
-    for i in range(length):
-      axis[i] = jax.random.multivariate_normal(
-          subkeys[i], mean=np.array(means[i]),
-          cov=np.array(covs[i]), shape=shapes[i])
+  random.seed(random_seed)
+  np.random.seed(random_seed_ext)
+  axis = [0] * length
+  for i in range(length):
+    axis[i] = np.random.multivariate_normal(
+        mean=np.array(means[i]), cov=np.array(covs[i]), size=shapes[i])
 
-    latent_array = jnp.concatenate((list(axis[i] for i in range(length))))
-    if rot is not None:
-      latent_array = np.dot(latent_array, rot)
-    latent_array = (latent_array - latent_array.mean(0)) / latent_array.std(0)
+  latent_array = np.concatenate((list(axis[i] for i in range(length))))
+  if rot is not None:
+    latent_array = np.dot(latent_array, rot)
+  latent_array = (latent_array - latent_array.mean(0)) / latent_array.std(0)
 
-    noise_first_view = jax.random.normal(
-        subkeys[i + 1], shape=(latent_dim, p_features1))
-    noise_second_view = jax.random.normal(
-        subkeys[i + 2], shape=(latent_dim, p_features2))
-    view_first_view = (
-        jnp.dot(latent_array, noise_first_view) + jax.random.normal(
-            subkeys[i + 3], shape=(n_sample, p_features1)) * noise)
-    view_second_view = (
-        jnp.dot(latent_array, noise_second_view) + jax.random.normal(
-            subkeys[i + 4], shape=(n_sample, p_features2)) * noise)
+  noise_first_view = np.random.normal(
+      size=(latent_dim, p_features1))
+  noise_second_view = np.random.normal(
+      size=(latent_dim, p_features2))
+  first_view = (torch.FloatTensor(
+      np.dot(latent_array, noise_first_view) + np.random.normal(
+          size=(n_sample, p_features1)) * noise))
+  second_view = (torch.FloatTensor(
+      np.dot(latent_array, noise_second_view) + np.random.normal(
+          size=(n_sample, p_features2)) * noise))
 
-    # TODO(lpapaxanthos): implement use of rd_vec.
-    rd_vec = None
+  rd_vec = np.random.choice(n_sample, n_sample, replace=False)
+  first_view = first_view[rd_vec]
 
-  elif implementation == 'pytorch':
-    random.seed(random_seed)
-    np.random.seed(random_seed_ext)
-    axis = [0] * length
-    for i in range(length):
-      axis[i] = np.random.multivariate_normal(
-          mean=np.array(means[i]), cov=np.array(covs[i]), size=shapes[i])
-
-    latent_array = np.concatenate((list(axis[i] for i in range(length))))
-    if rot is not None:
-      latent_array = np.dot(latent_array, rot)
-    latent_array = (latent_array - latent_array.mean(0)) / latent_array.std(0)
-
-    noise_first_view = np.random.normal(
-        size=(latent_dim, p_features1))
-    noise_second_view = np.random.normal(
-        size=(latent_dim, p_features2))
-    view_first_view = (torch.FloatTensor(
-        np.dot(latent_array, noise_first_view) + np.random.normal(
-            size=(n_sample, p_features1)) * noise))
-    view_second_view = (torch.FloatTensor(
-        np.dot(latent_array, noise_second_view) + np.random.normal(
-            size=(n_sample, p_features2)) * noise))
-
-    rd_vec = np.random.choice(n_sample, n_sample, replace=False)
-    view_first_view = view_first_view[rd_vec]
-
-  return view_first_view, view_second_view, rd_vec
+  return first_view, second_view, rd_vec
 
 
 def load(input_dir: str, filename: str) -> np.ndarray:
