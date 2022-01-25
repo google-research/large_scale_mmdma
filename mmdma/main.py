@@ -17,12 +17,33 @@ r"""Main module that generates the data and trains the model.
 
 Instructions:
 
+1. To run the algorithm on simulated data from data_pipeline.py:
+
 python3 -m trainer.main -- --output_dir dir1/dir2 \
 --data branch --n 300 --p 400 \
 --k 4 --ns 100 \
---e 10001 --d 5 --nr 1000 --ne 1000 --keops True --dual False --pca 1000 \
+--e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0
+
+2. To run the algorithm on user input data, in the form n_sample x p_feature.
+--data should be '' (default value) and --kernel should be False. The
+argument --keops can be True or False, --mode can be 'dual' or 'primal'.
+
+python3 -m trainer.main -- --output_dir dir1/dir2 \
+--input_fv my_data_1 --input_sv my_data_2 --kernel False \
+--k 4 --ns 100 \
+--e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1. --init 'uniform'
 
+3. To run the algorithm on user kernel data, in the form n_sample x n_sample.
+--data should be '' (default value) and --kernel should be True. The
+argument --keops can be True or False, --mode can only be `dual`.
+
+python3 -m trainer.main -- --output_dir dir1/dir2 \
+--input_fv my_data_1 --input_sv my_data_2 --kernel True \
+--k 4 --ns 100 \
+--e 10001 --d 5 --nr 1000 --ne 1000 --keops True --mode dual --pca 1000 \
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.
 """
 import os
 
@@ -39,12 +60,8 @@ import tensorflow as tf
 from tensorflow.io import gfile
 
 # Flags for input and output.
-flags.DEFINE_string('output_dir',
-                    'gs://xcloud_shared/lpapaxanthos/mmdma',
-                    'Output directory.')
-flags.DEFINE_string('input_dir',
-                    'gs://xcloud-shared/lpapaxanthos/data/mmd-ma',
-                    'Output directory.')
+flags.DEFINE_string('output_dir', '', 'Output directory.')
+flags.DEFINE_string('input_dir', '', 'Output directory.')
 flags.DEFINE_string(
     'input_fv', '', 'Input first view, can be point cloud or kernel.')
 flags.DEFINE_string(
@@ -52,7 +69,7 @@ flags.DEFINE_string(
 flags.DEFINE_string('rd_vec', '', 'Permutation of first view.')
 flags.DEFINE_bool(
     'kernel', False, 'Whether the input is a point cloud or kernel.')
-flags.DEFINE_enum('data', 'branch', ['branch', 'triangle', ''],
+flags.DEFINE_enum('data', '', ['branch', 'triangle', ''],
                   'Chooses simulation or user input.')
 flags.DEFINE_integer('n', 3000, 'Sample size of generated data.')
 flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')

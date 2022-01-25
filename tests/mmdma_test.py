@@ -23,9 +23,7 @@ import mmdma.train as mmdma_core
 import numpy as np
 import torch
 
-flags.DEFINE_string('output_dir',
-                    'gs://xcloud_public_bucket/lpapaxanthos/mmdma',
-                    'Output directory.')
+flags.DEFINE_string('output_dir', '', 'Output directory.')
 FLAGS = flags.FLAGS
 
 
