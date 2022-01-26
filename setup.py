@@ -18,7 +18,7 @@ import os
 import setuptools
 
 
-# Reads the version from ott
+# Reads the version
 __version__ = None
 with open('mmdma/version.py') as f:
   exec(f.read(), globals())

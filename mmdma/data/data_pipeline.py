@@ -18,8 +18,6 @@ import os
 import random
 from typing import Tuple, Union
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import torch
 from tensorflow.io import gfile
@@ -31,7 +29,7 @@ def generate_data(
     random_seed: int = 4,
     random_seed_ext: int = 5,
     simulation: str = 'branch',
-    ) -> Union[Tuple[jnp.ndarray], Tuple[torch.Tensor]]:
+    ) -> Union[Tuple[np.ndarray], Tuple[torch.Tensor]]:
   """Generates two views following the shape of a branch in their latent space.
 
   Arguments:
