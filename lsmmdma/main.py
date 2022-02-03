@@ -19,7 +19,7 @@ Instructions:
 
 1. To run the algorithm on simulated data from data_pipeline.py:
 
-python3 -m mmdma.main --output_dir outdir \
+python3 -m lsmmdma.main --output_dir outdir \
 --data branch --n 300 --p 400 \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
@@ -29,7 +29,7 @@ python3 -m mmdma.main --output_dir outdir \
 --data should be '' (default value) and --kernel should be False. The
 argument --keops can be True or False, --mode can be 'dual' or 'primal'.
 
-python3 -m mmdma.main --input_dir datadir --output_dir outdir \
+python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel False \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
@@ -39,7 +39,7 @@ python3 -m mmdma.main --input_dir datadir --output_dir outdir \
 --data should be '' (default value) and --kernel should be True. The
 argument --keops can be True or False, --mode can only be `dual`.
 
-python3 -m mmdma.main --inputdir datadir --output_dir outdir \
+python3 -m lsmmdma.main --inputdir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel True \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
