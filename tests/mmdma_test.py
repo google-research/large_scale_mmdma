@@ -16,10 +16,10 @@
 """Tests for MMDMA algorithm in PyTorch."""
 from absl import flags
 from absl.testing import absltest
-from mmdma.data import data_pipeline
-from mmdma.metrics import SupervisedEvaluation
-import mmdma.mmdma_functions as mmdma_fn
-import mmdma.train as mmdma_core
+from lsmmdma.data import data_pipeline
+from lsmmdma.metrics import SupervisedEvaluation
+import lsmmdma.mmdma_functions as mmdma_fn
+import lsmmdma.train as mmdma_core
 import numpy as np
 import torch
 
@@ -123,7 +123,8 @@ class MMDMATest(absltest.TestCase):
     kernel2 = mmdma_core.get_kernel(view2)
 
     rd_vec = np.arange(n)
-    eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec)
+    eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec,
+                                   device=self.device)
 
     cfg_model = self.cfg_model
     cfg_model.n_iter = 200
@@ -156,7 +157,8 @@ class MMDMATest(absltest.TestCase):
   def test_metrics(self):
     n = 200
     view1, _, _ = data_pipeline.generate_data(n, 10)
-    eval_fn = SupervisedEvaluation(ground_truth_alignment=np.arange(n))
+    eval_fn = SupervisedEvaluation(ground_truth_alignment=np.arange(n),
+                                   device=self.device)
     out = eval_fn.compute_all_evaluation(view1, view1)
 
     self.assertEqual(out.foscttm, 0.)

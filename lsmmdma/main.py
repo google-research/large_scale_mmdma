@@ -50,10 +50,11 @@ import os
 from absl import app
 from absl import flags
 from absl import logging
-from mmdma import train
-from mmdma.data import checkpointer
-from mmdma.data import data_pipeline
-from mmdma.metrics import SupervisedEvaluation
+import dataclasses
+from lsmmdma import train
+from lsmmdma.data import checkpointer
+from lsmmdma.data import data_pipeline
+from lsmmdma.metrics import SupervisedEvaluation
 import numpy as np
 import torch
 import tensorflow as tf
@@ -96,8 +97,39 @@ flags.DEFINE_float('l2', 1e-4, 'Hyperparameter for distortion terms.')
 flags.DEFINE_float('lr', 1e-5, 'Learning rate.')
 flags.DEFINE_float('s', 1., 'Scale parameter.')
 
+# Flags to assess runtime
+flags.DEFINE_bool('time', False, 'Whether or not to measure runtime.')
+
 
 FLAGS = flags.FLAGS
+
+
+def create_dummy_config(cfg: train.ModelGetterConfig):
+  """Creates dummy config, needed when timing the training loop."""
+  cfg = dataclasses.replace(cfg)
+  cfg.n_iter = 1
+  cfg.pca = 0
+  cfg.n_record = 0
+  cfg.n_eval = 0
+  return cfg
+
+
+def time_training_loop(func):
+
+  def inner_fn(cfg_model: train.ModelGetterConfig, *args):
+    """Enables to time the training loop."""
+    cfg_model_time = create_dummy_config(cfg_model)
+    _ = func(cfg_model_time, *args)
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    start.record()
+    out = func(cfg_model, *args)
+    end.record()
+    # Waits for everything to finish running
+    torch.cuda.synchronize()
+    runtime = start.elapsed_time(end)
+    return runtime, out
+  return inner_fn
 
 
 def main(_):
@@ -164,7 +196,7 @@ def main(_):
       lambda1=FLAGS.l1,
       lambda2=FLAGS.l2,
       pca=FLAGS.pca,
-      init=FLAGS.init
+      init=FLAGS.init,
       )
 
   # Moves input to device.
@@ -175,33 +207,42 @@ def main(_):
     second_view = train.get_kernel(second_view)
 
   # Runs model.
-  out = train.train_and_evaluate(
-      cfg_model, first_view, second_view, eval_fn, workdir=FLAGS.output_dir,
-      device=device)
+  train_fn = (time_training_loop(train.train_and_evaluate)
+              if FLAGS.time else train.train_and_evaluate)
+  if FLAGS.time:
+    runtime, out = train_fn(
+        cfg_model, first_view, second_view, eval_fn, '', device)
+  else:
+    out = train_fn(
+        cfg_model, first_view, second_view, eval_fn, FLAGS.output_dir, device)
+    runtime = '-'
   optim, model, eval_loss, eval_matching, pca_results, key = out
 
   # Saves results to files.
-  loss = eval_loss['loss'][-1]
-  mmd = eval_loss['mmd'][-1]
-  foscttm = eval_matching['foscttm'][-1]
-  top1 = eval_matching['top1'][-1]
-  top5 = eval_matching['top5'][-1]
+  loss = eval_loss['loss'][-1] if FLAGS.nr != 0 else -1
+  mmd = eval_loss['mmd'][-1] if FLAGS.nr != 0 else -1
+  foscttm = eval_matching['foscttm'][-1] if FLAGS.ne != 0 else -1
+  top1 = eval_matching['top1'][-1] if FLAGS.ne != 0 else -1
+  top5 = eval_matching['top5'][-1] if FLAGS.ne != 0 else -1
   results = [foscttm, top1, top5]
-  logging.info('Save metrics in %s.', FLAGS.output_dir)
+
+  logging.info('Save results in %s.', FLAGS.output_dir)
   with gfile.GFile(
       os.path.join(FLAGS.output_dir, filename + '.tsv'), 'w') as my_file:
-    my_file.write('model\tkey\tn_sample\tn_feat\tlow_dim\tn_iter\tkeops\t '
-                  'loss\tmmd\tfoscttm\ttop1\ttop5\n')
+    colnames = ['model', 'key', 'n_sample', 'n_feat', 'low_dim', 'n_iter', 'keops',
+                  'loss', 'mmd', 'foscttm' ,'top1', 'top5', 'time']
+    my_file.write('\t'.join(colnames) + '\n')
     checkpointer.save_data_eval(
-        my_file, FLAGS, key, loss, mmd, results, cfg_model)
-  logging.info('Save tracking in %s.', FLAGS.output_dir)
-  checkpointer.save_tracking(FLAGS.output_dir,
-                             filename,
-                             eval_loss,
-                             eval_matching,
-                             key,
-                             FLAGS.e,
-                             cfg_model)
+        my_file, FLAGS, key, loss, mmd, results, runtime, cfg_model)
+  if FLAGS.ne != 0:
+    logging.info('Save tracking in %s.', FLAGS.output_dir)
+    checkpointer.save_tracking(FLAGS.output_dir,
+                               filename,
+                               eval_loss,
+                               eval_matching,
+                               key,
+                               FLAGS.e,
+                               cfg_model)
   logging.info('Save model in %s.', FLAGS.output_dir)
   checkpointer.save_model(
       FLAGS.output_dir, filename, optim, model, key, FLAGS.e, loss, rd_vec)

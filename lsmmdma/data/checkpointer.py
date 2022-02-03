@@ -20,7 +20,7 @@ import os
 from typing import Tuple, DefaultDict, List
 
 import absl
-from mmdma.train import ModelGetterConfig
+from lsmmdma.train import ModelGetterConfig
 import numpy as np
 import torch
 from tensorflow.io import gfile
@@ -33,13 +33,14 @@ def save_data_eval(
     loss: float,
     mmd: float,
     res: float,
+    runtime: float,
     cfg_model: ModelGetterConfig,
     ):
-  """Saves main results but time."""
+  """Saves main results."""
   cfg_dict = dataclasses.asdict(cfg_model)
-  val = cfg_dict.get('vmap', cfg_dict.get('keops', None))
+  val = cfg_dict.get('keops', None)
   args = [flags.m, key, flags.n, flags.p, flags.d,
-          flags.e, val, loss, mmd, res[0], res[1], res[2]]
+          flags.e, val, loss, mmd, res[0], res[1], res[2], runtime]
   my_file.write('\t'.join(map(str, args)) + '\n')
 
 
@@ -72,7 +73,7 @@ def save_pca(
     pca_results: Tuple[np.ndarray],
     rd_vec: np.ndarray
     ):
-  """Saves model parameters."""
+  """Saves 2D representation."""
   filename_pca = f'{filename}_pca.npy'
   with gfile.GFile(os.path.join(path, filename_pca), 'w') as my_file:
     np.save(my_file, np.array(pca_results))
@@ -102,4 +103,3 @@ def save_tracking(
         'evaluation_matching': evaluation_matching
     }
     json.dump(data, my_file)
-

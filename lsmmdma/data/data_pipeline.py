@@ -41,7 +41,6 @@ def generate_data(
       can either be a 'branch' (two elongated Gaussian point clouds
       perpendicular to each other) or a 'triangle' (three elongated Gaussian
       point clouds forming a triangle).
-    implementation: language to use, 'jax' or 'pytorch'.
 
   Returns:
     tuple, first view, second view and corresponding indices from the first
@@ -59,7 +58,7 @@ def generate_data(
             [[1.7, -1.5], [-1.5, 1.7]],
             [[1.7, 1.5], [1.5, 1.7]]]
     n1 = int(n_sample / 4)
-    shapes = [2 * n1, n1, n - 3 * n1]
+    shapes = [2 * n1, n1, n1 - 3 * n1]
     rot = None
   elif simulation == 'branch':
     means = [[0, 0], [0, 8]]

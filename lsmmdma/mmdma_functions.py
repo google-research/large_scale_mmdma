@@ -226,8 +226,7 @@ def pen_primal(param: torch.Tensor, device: torch.device) -> torch.Tensor:
 
 def dis_primal(
     input_view: torch.Tensor,
-    param: torch.Tensor,
-    device: torch.device
+    param: torch.Tensor
 ) -> torch.Tensor:
   """Computes distortion penalty for the primal formulation.
 
@@ -242,14 +241,12 @@ def dis_primal(
   Arguments:
     input_view: torch.Tensor, one of the two views.
     param: torch.Tensor, model parameters.
-    device: torch.device, whether cuda or cpu.
   Returns:
     distortion_value: torch.Tensor, scalar value.
   """
-  p_feature = input_view.shape[1]
-  identity_matrix_view = torch.eye(p_feature).to(device)
-  param_tmp = (identity_matrix_view - torch.matmul(param, param.t()))
-  prod = torch.matmul(torch.matmul(param_tmp, input_view.t()), input_view)
+  gram = torch.matmul(input_view.t(), input_view)
+  tmp = torch.matmul(param, torch.matmul(param.t(), gram))
+  prod = gram - tmp
   distortion_value = torch.sqrt(torch.trace(torch.matmul(prod, prod)))
   return distortion_value
 

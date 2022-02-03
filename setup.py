@@ -15,23 +15,51 @@
 
 """Setup script for installing large_scale_mmdma as a pip module."""
 import os
-import setuptools
+from setuptools import find_packages
+from setuptools import setup
 
-
+folder = os.path.dirname(__file__)
 # Reads the version
 __version__ = None
-with open('mmdma/version.py') as f:
+with open(os.path.join(folder, "lsmmdma/version.py")) as f:
   exec(f.read(), globals())
 
+readme_path = os.path.join(folder, "README.md")
+readme_contents = ""
+if os.path.exists(readme_path):
+  with open(readme_path) as fp:
+    readme_contents = fp.read().strip()
 
 # Reads the requirements from requirements.txt
 folder = os.path.dirname(__file__)
-path = os.path.join(folder, 'requirements.txt')
+path = os.path.join(folder, "requirements.txt")
 install_requires = []
 if os.path.exists(path):
   with open(path) as fp:
     install_requires = [line.strip() for line in fp]
 
 
-setuptools.setup(version=__version__,
-                 install_requires=install_requires)
+setup(
+    name="lsmmdma",
+    version=__version__,
+    description="Scaling MMD-MA.",
+    author="Google LLC",
+    author_email="lpapaxanthos@google.com",
+    url="https://github.com/google-research/large_scale_mmdma",
+    long_description=readme_contents,
+    long_description_content_type="text/markdown",
+    license="Apache 2.0",
+    packages=find_packages(),
+    package_data={},
+    install_requires=install_requires,
+    classifiers=[
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache Software License",
+    ],
+    keywords="kernel, data integration",
+    requires_python=">=3.6",
+)
+
+

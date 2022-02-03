@@ -24,9 +24,9 @@ from absl import logging
 
 from collections import defaultdict as ddict
 import dataclasses
-from mmdma.initializers import initialize
-from mmdma.metrics import SupervisedEvaluation
-import mmdma.mmdma_functions as mmdma_fn
+from lsmmdma.initializers import initialize
+from lsmmdma.metrics import SupervisedEvaluation
+import lsmmdma.mmdma_functions as mmdma_fn
 import numpy as np
 from tenacity import retry, stop_after_attempt
 import torch
@@ -48,7 +48,6 @@ class ModelGetterConfig:
   lambda1: float = 1.
   lambda2: float = 1.
   n_iter: int = 1000
-  inc_epoch: int = 5
   mode: str = 'dual'
   keops: bool = False
   pca: bool = False
@@ -218,8 +217,8 @@ def loss_mmdma(
   if cfg_model.mode == 'primal':
     penalty_fv = mmdma_fn.pen_primal(params[0], device)
     penalty_sv = mmdma_fn.pen_primal(params[1], device)
-    distortion_fv = mmdma_fn.dis_primal(first_view, params[0], device)
-    distortion_sv = mmdma_fn.dis_primal(second_view, params[1], device)
+    distortion_fv = mmdma_fn.dis_primal(first_view, params[0])
+    distortion_sv = mmdma_fn.dis_primal(second_view, params[1])
   elif cfg_model.mode == 'dual':
     penalty_fv = mmdma_fn.pen_dual(embedding_fv, params[0], device)
     penalty_sv = mmdma_fn.pen_dual(embedding_sv, params[1], device)
@@ -334,7 +333,6 @@ def _evaluate(
   """
   @retry(stop=stop_after_attempt(3))
   def init_summary():
-    # Used for internal purposes.
     if (i == 0
         and (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir):
       summary_writer = tensorboard.SummaryWriter(workdir)
@@ -414,6 +412,9 @@ def train_and_evaluate(
 
   cfg_model.sigmas = torch.FloatTensor([cfg_model.sigmas]).to(device)
 
+  to_evaluate = (cfg_model.pca != 0
+                 or cfg_model.n_record != 0 or cfg_model.n_eval != 0)
+
   def _train_and_evaluate(
       key: int,
       evaluation: bool,
@@ -457,12 +458,8 @@ def train_and_evaluate(
                         summary_writer, workdir=inner_workdir)
         evaluation_loss, evaluation_matching, pca_results, summary_writer = out
 
-    if evaluation:
-      return (loss, loss_components, optimizer, model,
-              evaluation_loss, evaluation_matching,
-              pca_results)
-    else:
-      return loss, loss_components, optimizer, model
+    return (loss, optimizer, model, evaluation_loss, evaluation_matching,
+            pca_results)
 
   loss_output = np.inf
   key_output = np.inf
@@ -476,7 +473,7 @@ def train_and_evaluate(
 
   if cfg_model.n_seed > 1:
     for k in array_keys:
-      loss, loss_components, optimizer, model = _train_and_evaluate(
+      loss, optimizer, model, *_ = _train_and_evaluate(
           k, evaluation=False, inner_workdir='')
 
       if loss < loss_output:
@@ -484,8 +481,10 @@ def train_and_evaluate(
         key_output = k
 
   key_output = key_output if cfg_model.n_seed > 1 else array_keys[0]
-  out = _train_and_evaluate(key_output, evaluation=True, inner_workdir=workdir)
-  _, _, optimizer, model, evaluation_loss, evaluation_matching, pca_results = out
+  out = _train_and_evaluate(key_output,
+                            evaluation=to_evaluate,
+                            inner_workdir=workdir)
+  _, optimizer, model, evaluation_loss, evaluation_matching, pca_results = out
   return (
       optimizer,
       model,

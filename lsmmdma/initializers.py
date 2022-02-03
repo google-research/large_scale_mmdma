@@ -30,6 +30,6 @@ def initialize(flag_init: str) -> nn.init:
   elif not flag_init:
     initializer = nn.init.uniform_
   else:
-    raise ValueError("Initializer not provided.")
+    raise ValueError('Initializer not provided.')
   return initializer
 

@@ -16,7 +16,7 @@
 """Evaluation metrics."""
 import dataclasses
 import logging
-from mmdma.mmdma_functions import compute_sqpairwise_distances
+from lsmmdma.mmdma_functions import compute_sqpairwise_distances
 import numpy as np
 from pykeops.torch import LazyTensor
 import scipy

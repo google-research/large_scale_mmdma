@@ -15,4 +15,8 @@
 
 """Large scale MMDMA library."""
 
-from .version import __version__
+import lsmmdma.train
+import lsmmdma.mmdma_functions
+import lsmmdma.metrics
+import lsmmdma.initializers
+import lsmmdma.data
