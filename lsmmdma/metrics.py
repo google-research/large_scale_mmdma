@@ -65,10 +65,20 @@ class SupervisedEvaluation():
       logging.warning(
           'FOSCTTM was not computed and most likely led to an OOM issue.')
       foscttm = -1
-    top1 = self._topx_keops(
-        first_view, second_view_aligned, topk=int(1 / 100 * n))
-    top5 = self._topx_keops(
-        first_view, second_view_aligned, topk=int(5 / 100 * n))
+    if n > 100:
+      top1 = self._topx_keops(
+          first_view, second_view_aligned, topk=int(1 / 100 * n))
+    else:
+      logging.warning(
+          'Top1 can not be computed with a number of samples <100.')
+      top1 = -1
+    if n > 20:
+      top5 = self._topx_keops(
+          first_view, second_view_aligned, topk=int(5 / 100 * n))
+    else:
+      logging.warning(
+          'Top5 can not be computed with a number of samples <20.')
+      top5 = -1
     return OutputSupervised(foscttm, top1, top5)
 
   def _foscttm(
@@ -101,7 +111,6 @@ class SupervisedEvaluation():
       indknn = distance.argKmin(topk, dim=dim)
       frac = indknn - torch.arange(n).reshape(-1, 1).to(self.device)
       return torch.count_nonzero(frac == 0).item()
-
     n = first_view.shape[0]
     first_view_i = LazyTensor(first_view[:, None, :])  # (M**2, 1, 2)
     second_view_j = LazyTensor(second_view[None, :, :])  # (1, N, 2)
