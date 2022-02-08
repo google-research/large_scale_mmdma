@@ -480,7 +480,7 @@ def train_and_evaluate(
         loss_output = loss
         key_output = k
 
-  key_output = key_output if cfg_model.n_seed > 1 else array_keys[0]
+  key_output = key_output if cfg_model.n_seed > 1 else cfg_model.key
   out = _train_and_evaluate(key_output,
                             evaluation=to_evaluate,
                             inner_workdir=workdir)
