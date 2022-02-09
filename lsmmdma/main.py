@@ -91,7 +91,7 @@ flags.DEFINE_enum('m', 'primal', ['dual', 'primal'], 'Dual or primal mode.')
 
 # Flags for model hyperparameters.
 flags.DEFINE_integer('d', 5, 'Dimension of output space.')
-flags.DEFINE_string('init', 'uniform,0.,1.', 'Initialiser.')
+flags.DEFINE_string('init', 'uniform,0.,0.1', 'Initialiser.')
 flags.DEFINE_float('l1', 1e-4, 'Hyperparameter for penalty terms.')
 flags.DEFINE_float('l2', 1e-4, 'Hyperparameter for distortion terms.')
 flags.DEFINE_float('lr', 1e-5, 'Learning rate.')
