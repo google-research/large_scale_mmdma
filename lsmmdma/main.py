@@ -23,7 +23,7 @@ python3 -m lsmmdma.main --output_dir outdir \
 --data branch --n 300 --p 400 \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 
 2. To run the algorithm on user input data, in the form n_sample x p_feature.
 --data should be '' (default value) and --kernel should be False. The
@@ -33,7 +33,7 @@ python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel False \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 
 3. To run the algorithm on user kernel data, in the form n_sample x n_sample.
 --data should be '' (default value) and --kernel should be True. The
@@ -43,7 +43,7 @@ python3 -m lsmmdma.main --inputdir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel True \
 --k 4 --ns 5 \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform'
+--lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 """
 import os
 
