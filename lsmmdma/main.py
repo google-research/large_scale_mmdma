@@ -142,7 +142,10 @@ def main(_):
   # Gets input data.
   if FLAGS.data:
     first_view, second_view, rd_vec = data_pipeline.generate_data(
-        FLAGS.n, FLAGS.p, simulation=FLAGS.data)
+        path=FLAGS.output_dir,
+        n_sample=FLAGS.n,
+        p_feature=FLAGS.p,
+        simulation=FLAGS.data)
   else:
     first_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_fv)
     second_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_sv)

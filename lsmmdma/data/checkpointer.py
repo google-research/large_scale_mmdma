@@ -26,6 +26,22 @@ import torch
 from tensorflow.io import gfile
 
 
+def save_generated_data(
+    path: str,
+    first_view: torch.FloatTensor,
+    second_view: torch.FloatTensor,
+    rd_vec: np.ndarray):
+  """Saves generated data."""
+  file_prefix = 'generated_data'
+  with gfile.GFile(os.path.join(path, file_prefix + '_fv.pt'), 'wb') as my_file:
+    torch.save(first_view, my_file)
+  with gfile.GFile(os.path.join(path, file_prefix + '_sv.pt'), 'wb') as my_file:
+    torch.save(second_view, my_file)
+  with gfile.GFile(
+      os.path.join(path, file_prefix + '_rd_vec.npy'), 'wb') as my_file:
+    np.save(rd_vec, my_file)
+
+
 def save_data_eval(
     my_file: gfile.GFile,
     flags: absl.flags,

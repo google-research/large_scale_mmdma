@@ -18,12 +18,14 @@ import os
 import random
 from typing import Tuple, Union
 
+from lsmmmda.data.checkpointer import save_generated_data
 import numpy as np
 import torch
 from tensorflow.io import gfile
 
 
 def generate_data(
+    path: str,
     n_sample: int,
     p_feature: int,
     random_seed: int = 4,
@@ -44,6 +46,7 @@ def generate_data(
   are the same for both domains.
 
   Arguments:
+    path: path to output directory where to save the generated data.
     n_sample: number of samples.
     p_feature: number of features.
     random_seed: seed for random.
@@ -109,6 +112,7 @@ def generate_data(
   rd_vec = np.random.choice(n_sample, n_sample, replace=False)
   first_view = first_view[rd_vec]
 
+  save_generated_data(path, first_view, second_view, rd_vec)
   return first_view, second_view, rd_vec
 
 
