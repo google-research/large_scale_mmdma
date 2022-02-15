@@ -29,7 +29,7 @@ from tensorflow.io import gfile
 def save_data_eval(
     my_file: gfile.GFile,
     flags: absl.flags,
-    key: int,
+    seed: int,
     loss: float,
     mmd: float,
     res: float,
@@ -39,7 +39,7 @@ def save_data_eval(
   """Saves main results."""
   cfg_dict = dataclasses.asdict(cfg_model)
   val = cfg_dict.get('keops', None)
-  args = [flags.m, key, flags.n, flags.p, flags.d,
+  args = [flags.m, seed, flags.n, flags.p, flags.d,
           flags.e, val, loss, mmd, res[0], res[1], res[2], runtime]
   my_file.write('\t'.join(map(str, args)) + '\n')
 
@@ -49,7 +49,7 @@ def save_model(
     filename: str,
     optimizer: torch.optim,
     model: torch.nn.Module,
-    key: int,
+    seed: int,
     epoch: int,
     loss: float,
     rd_vec: np.ndarray
@@ -58,7 +58,7 @@ def save_model(
   filename = f'{filename}_model.json'
   with gfile.GFile(os.path.join(path, filename), 'w') as my_file:
     torch.save({
-        'key': key,
+        'seed': seed,
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
@@ -87,7 +87,7 @@ def save_tracking(
     filename: str,
     evaluation_loss: DefaultDict[str, List[float]],
     evaluation_matching: DefaultDict[str, List[float]],
-    key: int,
+    seed: int,
     epoch: int,
     cfg_model: ModelGetterConfig
     ):
@@ -95,7 +95,7 @@ def save_tracking(
   filename = f'{filename}_tracking.json'
   with gfile.GFile(os.path.join(path, filename), 'w') as my_file:
     data = {
-        'key': int(key),
+        'seed': int(seed),
         'mode': cfg_model.mode,
         'keops': cfg_model.keops,
         'epoch': epoch,

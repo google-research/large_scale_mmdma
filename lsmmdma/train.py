@@ -39,7 +39,7 @@ from typing import Tuple, Any, Dict, DefaultDict, List
 @dataclasses.dataclass(unsafe_hash=True)
 class ModelGetterConfig:
   """Model attributes."""
-  key: int
+  seed: int
   learning_rate: float = 1e-3
   low_dim: int = 5
   n_record: int = 10
@@ -416,7 +416,7 @@ def train_and_evaluate(
                  or cfg_model.n_record != 0 or cfg_model.n_eval != 0)
 
   def _train_and_evaluate(
-      key: int,
+      seed: int,
       evaluation: bool,
       inner_workdir: str = ''
       ) -> Any:
@@ -425,9 +425,9 @@ def train_and_evaluate(
     evaluation_matching = ddict(list)
     pca_results = list()
 
-    torch.manual_seed(key)
-    random.seed(key + 1)
-    np.random.seed(key + 2)
+    torch.manual_seed(seed)
+    random.seed(seed + 1)
+    np.random.seed(seed + 2)
 
     summary_writer = None
 
@@ -439,7 +439,7 @@ def train_and_evaluate(
                   cfg_model.keops,
                   device)
     model = model.to(device)
-    logging.info('key=%s', key)
+    logging.info('seed=%s', seed)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg_model.learning_rate)
     model.train()
 
@@ -462,26 +462,26 @@ def train_and_evaluate(
             pca_results)
 
   loss_output = np.inf
-  key_output = np.inf
+  seed_output = np.inf
 
   logging.info(cfg_model)
 
   # Sampling array of seeds.
-  np.random.seed(cfg_model.key)
+  np.random.seed(cfg_model.seed)
   assert cfg_model.n_seed < 1e6, 'cfg_model.n_seed must be smaller than 1e6.'
-  array_keys = np.random.choice(int(1e6), cfg_model.n_seed, replace=False)
+  array_seeds = np.random.choice(int(1e6), cfg_model.n_seed, replace=False)
 
   if cfg_model.n_seed > 1:
-    for k in array_keys:
+    for k in array_seeds:
       loss, optimizer, model, *_ = _train_and_evaluate(
           k, evaluation=False, inner_workdir='')
 
       if loss < loss_output:
         loss_output = loss
-        key_output = k
+        seed_output = k
 
-  key_output = key_output if cfg_model.n_seed > 1 else cfg_model.key
-  out = _train_and_evaluate(key_output,
+  seed_output = seed_output if cfg_model.n_seed > 1 else cfg_model.seed
+  out = _train_and_evaluate(seed_output,
                             evaluation=to_evaluate,
                             inner_workdir=workdir)
   _, optimizer, model, evaluation_loss, evaluation_matching, pca_results = out
@@ -491,5 +491,5 @@ def train_and_evaluate(
       evaluation_loss,
       evaluation_matching,
       pca_results,
-      key_output
+      seed_output
       )

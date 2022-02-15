@@ -23,9 +23,9 @@ def initialize(flag_init: str) -> nn.init:
     initializer = nn.init.normal_
   elif flag_init == 'uniform':
     initializer = nn.init.uniform_
-  elif flag_init == 'x_normal':
+  elif flag_init == 'xavier_normal':
     initializer = nn.init.xavier_normal_
-  elif flag_init == 'x_uniform':
+  elif flag_init == 'xavier_uniform':
     initializer = nn.init.xavier_uniform_
   elif not flag_init:
     initializer = nn.init.uniform_

@@ -30,7 +30,18 @@ def generate_data(
     random_seed_ext: int = 5,
     simulation: str = 'branch',
     ) -> Union[Tuple[np.ndarray], Tuple[torch.Tensor]]:
-  """Generates two views following the shape of a branch in their latent space.
+  """Generates two views following the `simulation` shape in their latent space.
+
+  The simulation process follows the one given in the original MMD-MA paper (Liu
+  et al. https://pubmed.ncbi.nlm.nih.gov/34632462/). A manifold (of shape
+  'branch' or 'triangle') is generated in two dimensions. The resulting set of
+  points is standardised. The points are then mapped to `p_feature` dimensions
+  using a (2 x p_feature) mapping, sampled from a standard Gaussian distribution,
+  resulting in a (n_sample * p_feature) matrix. Gaussian noise is then added to
+  each element of the matrix.
+
+  In these simulations, we assume that the numbers of samples and features are
+  are the same for both domains.
 
   Arguments:
     n_sample: number of samples.
