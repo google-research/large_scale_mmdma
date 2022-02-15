@@ -61,19 +61,19 @@ import tensorflow as tf
 from tensorflow.io import gfile
 
 # Flags for input and output.
-flags.DEFINE_string('output_dir', '', 'Output directory.')
-flags.DEFINE_string('input_dir', '', 'Output directory.')
+flags.DEFINE_string('output_dir', None, 'Output directory.')
+flags.DEFINE_string('input_dir', None, 'Input directory.')
 flags.DEFINE_string(
-    'input_fv', '', 'Input first view, can be point cloud or kernel.')
+    'input_fv', None, 'Input first view, can be point cloud or kernel.')
 flags.DEFINE_string(
-    'input_sv', '', 'Input second view, can be point cloud or kernel.')
-flags.DEFINE_string('rd_vec', '', 'Permutation of first view.')
+    'input_sv', None, 'Input second view, can be point cloud or kernel.')
+flags.DEFINE_string('rd_vec', None, 'Permutation of first view.')
 flags.DEFINE_bool(
     'kernel', False, 'Whether the input is a point cloud or kernel.')
-flags.DEFINE_enum('data', '', ['branch', 'triangle', ''],
+flags.DEFINE_enum('data', None, ['branch', 'triangle', None],
                   'Chooses simulation or user input.')
-flags.DEFINE_integer('n', 3000, 'Sample size of generated data.')
-flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')
+flags.DEFINE_integer('n', None, 'Sample size of generated data.')
+flags.DEFINE_integer('p', None, 'Number of features in the generated data.')
 
 # Random seeds.
 flags.DEFINE_integer('seed', 0, 'Seed.')
@@ -232,7 +232,7 @@ def main(_):
   with gfile.GFile(
       os.path.join(FLAGS.output_dir, filename + '.tsv'), 'w') as my_file:
     colnames = ['model', 'seed', 'n_sample', 'n_feat', 'low_dim', 'n_iter',
-                'keops', 'loss', 'mmd', 'foscttm' ,'top1', 'top5', 'time']
+                'keops', 'loss', 'mmd', 'foscttm', 'top1', 'top5', 'time']
     my_file.write('\t'.join(colnames) + '\n')
     checkpointer.save_data_eval(
         my_file, FLAGS, seed, loss, mmd, results, runtime, cfg_model)
@@ -254,11 +254,11 @@ def main(_):
   logging.info('End.')
 
 if __name__ == '__main__':
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_dir'])
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_fv'])
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_sv'])
-  flags.mark_flags_as_mutual_exclusive(['data', 'rd_vec'])
-  flags.mark_flags_as_mutual_exclusive(['n', 'input_dir'])
-  flags.mark_flags_as_mutual_exclusive(['p', 'input_dir'])
+  flags.mark_flags_as_mutual_exclusive(['data', 'input_dir'], required=True)
+  flags.mark_flags_as_mutual_exclusive(['data', 'input_fv'], required=True)
+  flags.mark_flags_as_mutual_exclusive(['data', 'input_sv'], required=True)
+  flags.mark_flags_as_mutual_exclusive(['data', 'rd_vec'], required=True)
+  flags.mark_flags_as_mutual_exclusive(['n', 'input_dir'], required=True)
+  flags.mark_flags_as_mutual_exclusive(['p', 'input_dir'], required=True)
 
   app.run(main)
