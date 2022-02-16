@@ -80,7 +80,7 @@ flags.DEFINE_integer('seed', 0, 'Seed.')
 flags.DEFINE_integer('ns', 1, 'Number of seeds with which to run the model.')
 
 # Flags for training and evaluation.
-flags.DEFINE_integer('e', 10001, 'Number of epochs.')
+flags.DEFINE_integer('e', 5001, 'Number of epochs.')
 flags.DEFINE_integer('ne', 100, 'When to evaluate.')
 flags.DEFINE_integer('nr', 100, 'When to record the loss.')
 flags.DEFINE_integer('pca', 100, 'Applies PCA to embeddings every X epochs.')
@@ -143,6 +143,7 @@ def main(_):
   if FLAGS.data:
     first_view, second_view, rd_vec = data_pipeline.generate_data(
         path=FLAGS.output_dir,
+        random_seed=FLAGS.seed,
         n_sample=FLAGS.n,
         p_feature=FLAGS.p,
         simulation=FLAGS.data)
@@ -221,7 +222,7 @@ def main(_):
     out = train_fn(
         cfg_model, first_view, second_view, eval_fn, FLAGS.output_dir, device)
     runtime = '-'
-  optim, model, eval_loss, eval_matching, pca_results, seed = out
+  optim, model, eval_loss, eval_matching, emb_results, pca_results, seed = out
 
   # Saves results to files.
   loss = eval_loss['loss'][-1] if FLAGS.nr != 0 else -1
@@ -250,10 +251,13 @@ def main(_):
                                cfg_model)
   logging.info('Save model in %s.', FLAGS.output_dir)
   checkpointer.save_model(
-      FLAGS.output_dir, filename, optim, model, seed, FLAGS.e, loss, rd_vec)
+      FLAGS.output_dir, filename, optim, model, seed, FLAGS.e, loss )
+  logging.info('Save embeddings in %s', FLAGS.output_dir)
+  checkpointer.save_embeddings(
+      FLAGS.output_dir, filename, emb_results)
   if FLAGS.pca != 0:
     logging.info('Save PCA representation in %s', FLAGS.output_dir)
-    checkpointer.save_pca(FLAGS.output_dir, filename, pca_results, rd_vec)
+    checkpointer.save_pca(FLAGS.output_dir, filename, pca_results)
   logging.info('End.')
 
 if __name__ == '__main__':

@@ -29,7 +29,6 @@ def generate_data(
     n_sample: int,
     p_feature: int,
     random_seed: int = 4,
-    random_seed_ext: int = 5,
     simulation: str = 'branch',
     ) -> Union[Tuple[np.ndarray], Tuple[torch.Tensor]]:
   """Generates two views following the `simulation` shape in their latent space.
@@ -49,8 +48,7 @@ def generate_data(
     path: path to output directory where to save the generated data.
     n_sample: number of samples.
     p_feature: number of features.
-    random_seed: seed for random.
-    random_seed_ext: seed for numpy.
+    random_seed: seed for random (random_seed) and numpy (random_seed + 1)
     simulation: str, latent structure for the input data. The latent structure
       can either be a 'branch' (two elongated Gaussian point clouds
       perpendicular to each other) or a 'triangle' (three elongated Gaussian
@@ -87,7 +85,7 @@ def generate_data(
   length = len(means)
 
   random.seed(random_seed)
-  np.random.seed(random_seed_ext)
+  np.random.seed(random_seed + 1)
   axis = [0] * length
   for i in range(length):
     axis[i] = np.random.multivariate_normal(

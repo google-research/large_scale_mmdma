@@ -299,6 +299,7 @@ def _evaluate(
     loss_components: Tuple[float],
     evaluation_loss: DefaultDict[str, List[float]],
     evaluation_matching: DefaultDict[str, List[float]],
+    embeddings_results: Tuple[np.ndarray],
     pca_results: Tuple[np.ndarray],
     cfg_model: ModelGetterConfig,
     summary_writer: tensorboard.SummaryWriter,
@@ -320,6 +321,7 @@ def _evaluate(
     evaluation_loss: records the loss and loss components
       during training.
     evaluation_matching: records the metrics during training.
+    embeddings_results: records embeddings during training.
     pca_results: records results of PCA on embeddings during training.
     cfg_model: contains the parameters of the model and algorithm.
     summary_writer: summary writer for tensorboard.
@@ -343,6 +345,10 @@ def _evaluate(
   if i == 0:
     summary_writer = init_summary()
 
+  weights1, weights2 = list(model.parameters())
+  embeddings_fv = torch.matmul(first_view, weights1)
+  embeddings_sv = torch.matmul(second_view, weights2)
+
   # Records loss.
   if cfg_model.n_record != 0 and i % cfg_model.n_record == 0:
     evaluation_loss = save_loss_value(loss, loss_components, evaluation_loss)
@@ -354,9 +360,6 @@ def _evaluate(
 
   # Saves evaluation metrics.
   if cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0:
-    weights1, weights2 = list(model.parameters())
-    embeddings_fv = torch.matmul(first_view, weights1)
-    embeddings_sv = torch.matmul(second_view, weights2)
     eval_out = eval_fn.compute_all_evaluation(embeddings_fv, embeddings_sv)
     eval_out_dict = dataclasses.asdict(eval_out)
     logging.info('Train evaluation: %s.', eval_out)
@@ -367,18 +370,26 @@ def _evaluate(
     evaluation_matching = save_evaluation(
         eval_out_dict, evaluation_matching)
 
-  # Saves lower dimensional representation.
+  # Saves low dimensional representation
+  if ((cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0)
+      or (cfg_model.n_record != 0 and i % cfg_model.n_record == 0)):
+    embeddings_results.append(
+        [embeddings_fv.detach().cpu(), embeddings_sv.detach().cpu()])
+
+  # Saves 2-dimensional representation obtained with PCA.
   if cfg_model.pca != 0 and i % cfg_model.pca == 0:
-    weights1, weights2 = list(model.parameters())
-    embeddings_fv = torch.matmul(first_view, weights1).detach().cpu()
-    embeddings_sv = torch.matmul(second_view, weights2).detach().cpu()
-    pca_rep_fv, pca_rep_sv = mmdma_fn.pca(embeddings_fv, embeddings_sv)
+    pca_rep_fv, pca_rep_sv = mmdma_fn.pca(
+        embeddings_fv.detach().cpu(), embeddings_sv.detach().cpu())
     pca_results.append([pca_rep_fv, pca_rep_sv])
 
   if (i == cfg_model.n_iter - 1
       and (cfg_model.n_record != 0 or cfg_model.n_eval != 0) and workdir):
     summary_writer.close()
-  return evaluation_loss, evaluation_matching, pca_results, summary_writer
+  return (evaluation_loss,
+          evaluation_matching,
+          embeddings_results,
+          pca_results,
+          summary_writer)
 
 
 def train_and_evaluate(
@@ -424,6 +435,7 @@ def train_and_evaluate(
     evaluation_loss = ddict(list)
     evaluation_matching = ddict(list)
     pca_results = list()
+    embeddings_results = list()
 
     torch.manual_seed(seed)
     random.seed(seed + 1)
@@ -454,12 +466,12 @@ def train_and_evaluate(
       if evaluation:
         out = _evaluate(i, first_view, second_view, model, eval_fn, loss,
                         loss_components, evaluation_loss,
-                        evaluation_matching, pca_results, cfg_model,
-                        summary_writer, workdir=inner_workdir)
-        evaluation_loss, evaluation_matching, pca_results, summary_writer = out
+                        evaluation_matching, embeddings_results, pca_results,
+                        cfg_model, summary_writer, workdir=inner_workdir)
+        evaluation_loss, evaluation_matching, embeddings_results, pca_results, summary_writer = out
 
     return (loss, optimizer, model, evaluation_loss, evaluation_matching,
-            pca_results)
+            embeddings_results, pca_results)
 
   loss_output = np.inf
   seed_output = np.inf
@@ -484,12 +496,13 @@ def train_and_evaluate(
   out = _train_and_evaluate(seed_output,
                             evaluation=to_evaluate,
                             inner_workdir=workdir)
-  _, optimizer, model, evaluation_loss, evaluation_matching, pca_results = out
+  _, optimizer, model, evaluation_loss, evaluation_matching, embeddings_results, pca_results = out
   return (
       optimizer,
       model,
       evaluation_loss,
       evaluation_matching,
+      embeddings_results,
       pca_results,
       seed_output
       )

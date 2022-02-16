@@ -67,8 +67,7 @@ def save_model(
     model: torch.nn.Module,
     seed: int,
     epoch: int,
-    loss: float,
-    rd_vec: np.ndarray
+    loss: float
     ):
   """Saves model parameters."""
   filename = f'{filename}_model.json'
@@ -78,8 +77,7 @@ def save_model(
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'loss': loss,
-        'rd_vec': rd_vec.tolist(),
+        'loss': loss
         }, my_file)
 
 
@@ -87,15 +85,22 @@ def save_pca(
     path: str,
     filename: str,
     pca_results: Tuple[np.ndarray],
-    rd_vec: np.ndarray
     ):
   """Saves 2D representation."""
   filename_pca = f'{filename}_pca.npy'
   with gfile.GFile(os.path.join(path, filename_pca), 'w') as my_file:
     np.save(my_file, np.array(pca_results))
-  filename_rdvec = f'{filename}_rdvec.npy'
-  with gfile.GFile(os.path.join(path, filename_rdvec), 'w') as my_file:
-    np.save(my_file, rd_vec)
+
+
+def save_embeddings(
+    path: str,
+    filename: str,
+    embeddings_results: Tuple[np.ndarray],
+    ):
+  """Saves low dimensional representation."""
+  filename_emb = f'{filename}_embeddings.npy'
+  with gfile.GFile(os.path.join(path, filename_emb), 'w') as my_file:
+    np.save(my_file, np.array(embeddings_results))
 
 
 def save_tracking(
