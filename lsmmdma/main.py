@@ -70,10 +70,10 @@ flags.DEFINE_string(
 flags.DEFINE_string('rd_vec', None, 'Permutation of first view.')
 flags.DEFINE_bool(
     'kernel', False, 'Whether the input is a point cloud or kernel.')
-flags.DEFINE_enum('data', None, ['branch', 'triangle', None],
+flags.DEFINE_enum('data', 'branch', ['branch', 'triangle', ''],
                   'Chooses simulation or user input.')
-flags.DEFINE_integer('n', None, 'Sample size of generated data.')
-flags.DEFINE_integer('p', None, 'Number of features in the generated data.')
+flags.DEFINE_integer('n', 300, 'Sample size of generated data.')
+flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')
 
 # Random seeds.
 flags.DEFINE_integer('seed', 0, 'Seed.')
@@ -251,7 +251,7 @@ def main(_):
                                cfg_model)
   logging.info('Save model in %s.', FLAGS.output_dir)
   checkpointer.save_model(
-      FLAGS.output_dir, filename, optim, model, seed, FLAGS.e, loss )
+      FLAGS.output_dir, filename, optim, model, seed, FLAGS.e, loss)
   logging.info('Save embeddings in %s', FLAGS.output_dir)
   checkpointer.save_embeddings(
       FLAGS.output_dir, filename, emb_results)
@@ -261,11 +261,4 @@ def main(_):
   logging.info('End.')
 
 if __name__ == '__main__':
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_dir'], required=True)
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_fv'], required=True)
-  flags.mark_flags_as_mutual_exclusive(['data', 'input_sv'], required=True)
-  flags.mark_flags_as_mutual_exclusive(['data', 'rd_vec'], required=True)
-  flags.mark_flags_as_mutual_exclusive(['n', 'input_dir'], required=True)
-  flags.mark_flags_as_mutual_exclusive(['p', 'input_dir'], required=True)
-
   app.run(main)
