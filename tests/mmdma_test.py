@@ -54,7 +54,7 @@ class MMDMATest(absltest.TestCase):
     self.device = torch.device('cpu')
 
     self.cfg_model = mmdma_core.ModelGetterConfig(
-        key=2,
+        seed=2,
         low_dim=self.low_dim,
         n_iter=6,
         keops=True,
@@ -69,8 +69,7 @@ class MMDMATest(absltest.TestCase):
         )
 
   def test_distortion(self):
-    dis_val_primal = mmdma_fn.dis_primal(
-        self.view1, self.param1_primal, self.device)
+    dis_val_primal = mmdma_fn.dis_primal(self.view1, self.param1_primal)
     dis_val_dual = mmdma_fn.dis_dual(self.embedding1_dual, self.kernel1)
 
     self.assertAlmostEqual(dis_val_primal, dis_val_dual, delta=1e-3)
@@ -143,7 +142,7 @@ class MMDMATest(absltest.TestCase):
         else:
           out = mmdma_core.train_and_evaluate(
               cfg_model, view1, view2, eval_fn, workdir='', device=self.device)
-        _, _, evaluation_loss, evaluation_matching, _, _ = out
+        _, _, evaluation_loss, evaluation_matching, _, _, _ = out
 
         # Saves results.
         loss.append(evaluation_loss['loss'][-1])
@@ -156,7 +155,7 @@ class MMDMATest(absltest.TestCase):
 
   def test_metrics(self):
     n = 200
-    view1, _, _ = data_pipeline.generate_data(n, 10)
+    view1, _, _ = data_pipeline.generate_data(None, n, 10)
     eval_fn = SupervisedEvaluation(ground_truth_alignment=np.arange(n),
                                    device=self.device)
     out = eval_fn.compute_all_evaluation(view1, view1)
