@@ -44,7 +44,7 @@ setup(
     version=__version__,
     description="Scaling MMD-MA.",
     author="Google LLC",
-    author_email="lpapaxanthos@google.com",
+    author_email="no-reply@google.com",
     url="https://github.com/google-research/large_scale_mmdma",
     long_description=readme_contents,
     long_description_content_type="text/markdown",
