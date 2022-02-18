@@ -132,9 +132,9 @@ def time_training_loop(func):
 
 
 def main(_):
-  if FLAGS.kernel and FLAGS.mode == 'primal':
+  if FLAGS.kernel and FLAGS.m == 'primal':
     raise ValueError(f"""The flag kernel set to {FLAGS.kernel} is not compatible
-                     with the flag mode set to {FLAGS.mode}""")
+                     with the flag mode set to {FLAGS.m}""")
 
   tf.config.experimental.set_visible_devices([], 'GPU')
   logging.info('cuda is available: %s', torch.cuda.is_available())

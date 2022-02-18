@@ -20,6 +20,7 @@ from typing import Tuple, Union
 
 from lsmmdma.data.checkpointer import save_generated_data
 import numpy as np
+import scanpy
 import torch
 from tensorflow.io import gfile
 
@@ -116,10 +117,17 @@ def generate_data(
 
 
 def load(input_dir: str, filename: str) -> np.ndarray:
-  with gfile.GFile(
-      os.path.join(input_dir, filename), 'rb') as my_file:
-    try:
+  """Loads data."""
+  path_file = os.path.join(input_dir, filename)
+  with gfile.GFile(path_file, 'rb') as my_file:
+    if path_file.split('.')[-1] == 'h5ad':
+      data = scanpy.read_h5ad(my_file)
+      data = data.X.todense()
+    elif path_file.split('.')[-1] == 'npy':
       data = np.load(my_file)
-    except:
-      data = np.loadtxt(my_file)
+    else:
+      try:
+        data = np.loadtxt(my_file)
+      except:
+        raise ValueError('Input data is not in a supported format.')
   return data

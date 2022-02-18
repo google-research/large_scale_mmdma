@@ -20,6 +20,7 @@ pykeops.clean_pykeops()  # just in case old build files are still present
 from pykeops.torch import LazyTensor
 from sklearn import decomposition
 import torch
+from typing import Optional
 
 
 # Functions in dual.
@@ -105,9 +106,9 @@ def squared_mmd(
     n_sample1 = first_view.shape[0]
     n_sample2 = second_view.shape[0]
     cost = gaussian_kernel(
-        first_view, first_view, sigmas, keops).sum() / n_sample1**2
+        first_view, None, sigmas, keops).sum() / n_sample1**2
     cost += gaussian_kernel(
-        second_view, second_view, sigmas, keops).sum() / n_sample2**2
+        second_view, None, sigmas, keops).sum() / n_sample2**2
     cost -= 2 * gaussian_kernel(
         first_view, second_view, sigmas, keops).sum() / (
             n_sample1 * n_sample2)
@@ -254,7 +255,7 @@ def dis_primal(
 # Others.
 def compute_sqpairwise_distances(
     first_view: torch.Tensor,
-    second_view: torch.Tensor = None
+    second_view: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
   """Computes squared euclidean pairwise distances.
 
@@ -270,6 +271,7 @@ def compute_sqpairwise_distances(
     cross_inner_product = torch.matmul(first_view, first_view.t())
     diff = (sample_norm_first_view
             + sample_norm_first_view.reshape(1, -1) - 2 * cross_inner_product)
+    diff -= torch.diag(torch.diag(diff))
   else:
     sample_norm_first_view = torch.sum(
         torch.square(first_view), axis=1).reshape(-1, 1)
