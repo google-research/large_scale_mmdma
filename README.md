@@ -3,6 +3,7 @@
 [**Installation**](#installation)
 | [**Examples**](https://github.com/google-research/large_scale_mmdma/blob/master/examples/tutorial101.ipynb)
 | [**Command line instructions**](#commandline)
+| [**Input**](#input)
 | [**Output**](#output)
 
 The objective of [MMD-MA](https://pubmed.ncbi.nlm.nih.gov/34632462/) is to
@@ -185,6 +186,10 @@ python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 ```
+
+## Input<a id="input"></a>
+
+In case the user is providing the input data, supported formats are anndata objects (`.h5ad`), numpy arrays (`.npy`), tab-separated arrays (`.tsv`), coma-separated arrays (`.csv`) and white-space separated arrays.
 
 ## Output<a id="output"></a>
 

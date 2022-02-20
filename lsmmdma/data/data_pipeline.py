@@ -119,12 +119,17 @@ def generate_data(
 def load(input_dir: str, filename: str) -> np.ndarray:
   """Loads data."""
   path_file = os.path.join(input_dir, filename)
+  file_ext = os.path.splitext(path_file)[-1]
   with gfile.GFile(path_file, 'rb') as my_file:
-    if path_file.split('.')[-1] == 'h5ad':
+    if file_ext == '.h5ad':
       data = scanpy.read_h5ad(my_file)
       data = data.X.todense()
-    elif path_file.split('.')[-1] == 'npy':
+    elif file_ext == '.npy':
       data = np.load(my_file)
+    elif file_ext == '.tsv':
+      data = np.loadtxt(my_file, delimiter='\t')
+    elif file_ext == '.csv':
+      data = np.loadtxt(my_file, delimiter=',')
     else:
       try:
         data = np.loadtxt(my_file)
