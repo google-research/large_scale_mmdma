@@ -1,8 +1,8 @@
 # Large-Scale MMD-MA
 
 [**Installation**](#installation)
-| [**Examples**](https://github.com/google-research/large_scale_mmdma/blob/master/examples/tutorial101.ipynb)
 | [**Command line instructions**](#commandline)
+| [**Examples**](#examples)
 | [**Input**](#input)
 | [**Output**](#output)
 
@@ -12,7 +12,7 @@ this end, two sets of points are projected, from two different spaces endowed
 with a positive definite kernel, to a shared Euclidean space of lower dimension
 `low_dim`. The mappings from high to low dimensional space are
 obtained using functions belonging to the respective RKHS. To obtain the
-mappings, we minimise a [loss function](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py) that is composed of three terms:
+mappings, we minimise a [loss function](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py#L183) that is composed of three terms:
 - an MMD term between the low dimensional representations of the two views,
 which encourages them to have the same distribution. The RBF kernel is used
 to compute MMD.
@@ -34,9 +34,11 @@ of runtime and memory, while if `n >> p`, the primal
 formulation is favorable.
 
 Additionally, in order to scale the computation of MMD to a large number of
-samples, we propose to use the library
-[KeOps](https://www.kernel-operations.io/keops/index.html) which
+samples, we propose either to:
+- use the
+[KeOps](https://www.kernel-operations.io/keops/index.html) library which
 lets you compute large kernel operations on GPUs without memory overflow.
+- or to use stochastic gradient descent with minibatches.
 
 ## Installation<a id="installation"></a>
 
@@ -79,10 +81,10 @@ and the seed.
 
 
 **Input/Output** It is possible to give as input either a path and filenames pointing to the
-user input or to choose to generate data with [data_pipeline.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py). In the
+user input or to choose to generate data with the [data_pipeline.generate_data](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py#L13) function. In the
 case one wants to generate simulation data, the input flags are:
-- `--data`: str, it can be either 'branch' (default), 'triangle' or ''. The
-simulated data is described in the pydoc of [data_pipeline.generate_data](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py). ''
+- `--data`: str, it can be either 'branch', 'triangle' or '' (default). The
+simulated data is described in the pydoc of [data_pipeline.generate_data](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py#L13). ''
 means that simulated data is not used.
 - `--n`: int (default 300), number of samples for both views.
 - `--p`: int (default 1000), number of features for both views.
@@ -101,16 +103,21 @@ used, we assume that the samples of both views follow the same ordering.
 In both cases, two other flags are also available:
 - `--kernel`: bool (default False), whether the input data given by the user is
 a kernel (n x n instead of n x p). This parameter can only be set to True when
-`--mode` is 'dual'.
+`--m` is 'dual'.
 - `--output_dir`: str (default None), output directory.
 
 **Model** The flags allow you to choose between four algorithms, using either
 the 'primal' or 'dual' formulation, and using KeOps or not.
-- `--mode`: str, either 'primal' or 'dual' (default).
+- `--m`: str, either 'primal' or 'dual' (default).
 - `--keops`: bool, either True (default) or False.
+- `--bs`: int (default 0), defines the size of the batch for a stochastic
+optimisation. If 0, then each gradient step is calculated on the whole data
+instead. The stochastic optimisation is only available for mode `--m==primal`.
+- `--use_unbiased_mmd`: bool (default True), determines whether or not to use
+the unbiased version of MMD (see [Gretton et al. 2012](https://www.jmlr.org/papers/volume13/gretton12a/gretton12a.pdf) Lemma 6).
 
 **Seeds** The seed for the training phase, and for generating the data when
-`--data` is not None, is fixed with the flag `--seed` (int, default value is 0).
+`--data` is not '', is fixed with the flag `--seed` (int, default value is 0).
 If one wishes to use multipe starts when training (X seeds and selection
 of the best one based on the value of the loss), it is possible to also define
 the number of seeds to try with: `--ns` (int, default value is 1).
@@ -120,7 +127,7 @@ the number of seeds to try with: `--ns` (int, default value is 1).
 - `--init`: str (default 'uniform,0.,0.1'), initialisation for the learned
 parameters. It can be sampled from a 'uniform', 'normal', 'xavier_uniform' or
 'xavier_normal' distributions. The parameters of the initialisation functions
-are passed to the same flag separated by a coma. See [initializers.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/initializers.py) and [train.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py).
+are passed to the same flag separated by a coma. See [initializers.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/initializers.py) and [train.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py#L137).
 - `--l1`: float (default 1e-4), hyperparameter in front of both penalty terms.
 - `--l2`: float (default 1e-4), hyperparameter in front of both distortion terms.
 - `--lr`: float (default 1e-5), learning rate.
@@ -136,11 +143,20 @@ of the loss are recorded, every 'ne' epochs. 0 means that the loss and its
 components are never recorded.
 - `--pca`: int (default 100), regular interval at which PCA is performed on the
 embeddings, every 'pca' epochs. 0 means that PCA is not used on the output.
+- `--av_loss`: int (default -1), number of last minibatches of an epoch to
+average to obtain the loss that is saved.
 
 **Timing** Timing the method is possible when the flag `--time` is set to True
 (default False).
 
-We show now three examples of usage of the command line to run the algorithm.
+
+## Examples
+We show now a few examples of usage of the command line to run the algorithm. We
+also introduce two notebooks that display the usage of the algorithm and its
+runtime.
+
+The first four examples show how to run the algorithm without the stochastic
+optimisation option. Each gradient step is done on the whole dataset.
 
 1. To run the algorithm on simulated data from [data_pipeline.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py),
 a minimal set of commands is:
@@ -152,44 +168,63 @@ python3 -m lsmmdma.main --output_dir outdir \
 ```
 
 2. To run the algorithm on simulated data from [data_pipeline.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py), one can
-also choose when to record the intermediate results, the hyperparameters and to
-allow for 5 multiple starts:
+also choose when to record the intermediate results, to set the hyperparameters
+and to allow for 5 multiple starts:
 
 ```bash
 python3 -m lsmmdma.main --output_dir outdir \
 --data branch --n 300 --p 400 \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops False --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
+--seed 4 --ns 5 \
+--keops False --m dual \
+--e 1001 --nr 100 --ne 100 --pca 100 \
+--d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 ```
 
 3. To run the algorithm on user input data, in the form n_sample x p_feature.
 `--data` should be '' (default) and `--kernel` should be False (default). The
-argument `--keops` can be True or False, `--mode` can be 'dual' or 'primal'.
+argument `--keops` can be True or False, `--m` can be 'dual' or 'primal'.
 
 ```bash
 python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel False \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
+--seed 4 --ns 5 \
+--keops True --m dual \
+--e 1001 --nr 100 --ne 100 --pca 100 \
+--d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 ```
 
 4. To run the algorithm on user kernel data, in the form n_sample x n_sample.
 `--data` should be '' (default) and `--kernel` should be True. The
-argument `--keops` can be True or False, `--mode` can only be 'dual'.
+argument `--keops` can be True or False, `--m` can only be 'dual'.
 
 ```bash
 python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --input_fv my_data_1 --input_sv my_data_2 --kernel True \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
+--seed 4 --ns 5 \
+--keops True --m dual \
+--e 1001 --nr 100 --ne 100 --pca 100 \
+--d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 ```
+
+5. The next example shows how to use the stochastic optimisation option. This
+option only exists in the primal.
+
+```bash
+python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
+--input_fv my_data_1 --input_sv my_data_2 \
+--seed 4 --ns 5 \
+--keops False --m dual --bs 1000 \
+--e 1001 --nr 100 --ne 100 --pca 100 --av_loss -1 \
+--d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
+```
+
+A [tutorial](https://github.com/google-research/large_scale_mmdma/blob/master/examples/tutorial101.ipynb) and a [benchmark](https://github.com/google-research/large_scale_mmdma/blob/master/examples/benchmark.ipynb) notebooks are also available in [examples/](https://github.com/google-research/large_scale_mmdma/tree/master/examples).
 
 ## Input<a id="input"></a>
 
-In case the user is providing the input data, supported formats are anndata objects (`.h5ad`), numpy arrays (`.npy`), tab-separated arrays (`.tsv`), coma-separated arrays (`.csv`) and white-space separated arrays.
+In case the user is providing the input data, supported formats are AnnData
+objects (`.h5ad`), numpy arrays (`.npy`), tab-separated arrays (`.tsv`),
+coma-separated arrays (`.csv`) and white-space separated arrays.
 
 ## Output<a id="output"></a>
 
@@ -201,14 +236,15 @@ several files are saved in the output directory
 evaluation metrics during training, seed, number of epochs.
 - `[key:val]_model.json`: model and optimiser state dictionaries,
 loss, number of epochs, seed.
-- `[key:val]_pca.npy`: 2D representation obtained with PCA on the
-embeddings during training.
-- `[key:val]_embeddings.npy`: embeddings during training.
+- `[key:val]_pca_X.npy`: 2D representation obtained with PCA on the
+embeddings during training (for the first and second views).
+- `[key:val]_embeddings_X.npy`: embeddings during training (for the first and
+second views).
 - `generated_data_X`: first view, second view and `rd_vec`
-generated by [data_pipeline.generate_data](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py).
+generated by [data_pipeline.generate_data](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py#L13).
 
-`[key:val]` represents a list of key:value as determined by the flags and written
-in [main.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/main.py).
+`[key:val]` represents a list of key:value as determined by the flags and
+written in [main.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/main.py#L127).
 
 ## Disclaimer
 

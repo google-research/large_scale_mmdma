@@ -15,35 +15,7 @@
 
 r"""Main module that generates the data and trains the model.
 
-Instructions:
-
-1. To run the algorithm on simulated data from data_pipeline.py:
-
-python3 -m lsmmdma.main --output_dir outdir \
---data branch --n 300 --p 400 \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
-
-2. To run the algorithm on user input data, in the form n_sample x p_feature.
---data should be '' (default value) and --kernel should be False. The
-argument --keops can be True or False, --mode can be 'dual' or 'primal'.
-
-python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
---input_fv my_data_1 --input_sv my_data_2 --kernel False \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
-
-3. To run the algorithm on user kernel data, in the form n_sample x n_sample.
---data should be '' (default value) and --kernel should be True. The
-argument --keops can be True or False, --mode can only be `dual`.
-
-python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
---input_fv my_data_1 --input_sv my_data_2 --kernel True \
---k 4 --ns 5 \
---e 1001 --d 5 --nr 100 --ne 100 --keops True --m dual --pca 100 \
---lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
+Instructions can be found on the readme.md document.
 """
 import os
 
@@ -70,7 +42,7 @@ flags.DEFINE_string(
 flags.DEFINE_string('rd_vec', None, 'Permutation of first view.')
 flags.DEFINE_bool(
     'kernel', False, 'Whether the input is a point cloud or kernel.')
-flags.DEFINE_enum('data', 'branch', ['branch', 'triangle', ''],
+flags.DEFINE_enum('data', '', ['branch', 'triangle', ''],
                   'Chooses simulation or user input.')
 flags.DEFINE_integer('n', 300, 'Sample size of generated data.')
 flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')
@@ -83,11 +55,14 @@ flags.DEFINE_integer('ns', 1, 'Number of seeds with which to run the model.')
 flags.DEFINE_integer('e', 5001, 'Number of epochs.')
 flags.DEFINE_integer('ne', 100, 'When to evaluate.')
 flags.DEFINE_integer('nr', 100, 'When to record the loss.')
+flags.DEFINE_integer('av_loss', -1, 'Averaging the loss on X batches.')
 flags.DEFINE_integer('pca', 100, 'Applies PCA to embeddings every X epochs.')
 
 # Flags to define the algorithm.
 flags.DEFINE_boolean('keops', True, 'Uses keops or not.')
 flags.DEFINE_enum('m', 'dual', ['dual', 'primal'], 'Dual or primal mode.')
+flags.DEFINE_integer('bs', 0, 'Batch size.')
+flags.DEFINE_bool('use_unbiased_mmd', True, 'Use unbiased MMD or not.')
 
 # Flags for model hyperparameters.
 flags.DEFINE_integer('d', 5, 'Dimension of output space.')
@@ -115,8 +90,8 @@ def create_dummy_config(cfg: train.ModelGetterConfig):
 
 
 def time_training_loop(func):
+  """Enables to time the training loop."""
   def inner_fn(cfg_model: train.ModelGetterConfig, *args):
-    """Enables to time the training loop."""
     cfg_model_time = create_dummy_config(cfg_model)
     _ = func(cfg_model_time, *args)
     start = torch.cuda.Event(enable_timing=True)
@@ -135,6 +110,9 @@ def main(_):
   if FLAGS.kernel and FLAGS.m == 'primal':
     raise ValueError(f"""The flag kernel set to {FLAGS.kernel} is not compatible
                      with the flag mode set to {FLAGS.m}""")
+  if FLAGS.m == 'dual' and FLAGS.bs != 0:
+    raise ValueError("""The stochastic optimisation version of the algorithm is
+                     only available with the primal formulation.""")
 
   tf.config.experimental.set_visible_devices([], 'GPU')
   logging.info('cuda is available: %s', torch.cuda.is_available())
@@ -167,7 +145,8 @@ def main(_):
                        's' + str(FLAGS.s),
                        'l1' + str(FLAGS.l1),
                        'l2' + str(FLAGS.l2),
-                       'i' + str(FLAGS.init)])
+                       'init' + str(FLAGS.init),
+                       'bs' + str(FLAGS.bs)])
   if FLAGS.data:
     filename = ':'.join([filename,
                          'n' + str(FLAGS.n),
@@ -203,14 +182,23 @@ def main(_):
       lambda2=FLAGS.l2,
       pca=FLAGS.pca,
       init=FLAGS.init,
+      batch_size=FLAGS.bs,
+      n_av_loss=FLAGS.av_loss,
+      use_unbiased_mmd=FLAGS.use_unbiased_mmd
       )
 
-  # Moves input to device.
-  first_view = torch.FloatTensor(first_view).to(device)
-  second_view = torch.FloatTensor(second_view).to(device)
-  if cfg_model.mode == 'dual' and not FLAGS.kernel:
-    first_view = train.get_kernel(first_view)
-    second_view = train.get_kernel(second_view)
+  # Prepares input.
+  if cfg_model.batch_size != 0:
+    first_view = torch.utils.data.DataLoader(
+        first_view, batch_size=cfg_model.batch_size, shuffle=True)
+    second_view = torch.utils.data.DataLoader(
+        second_view, batch_size=cfg_model.batch_size, shuffle=True)
+  else:
+    first_view = torch.FloatTensor(first_view).to(device)
+    second_view = torch.FloatTensor(second_view).to(device)
+    if cfg_model.mode == 'dual' and not FLAGS.kernel:
+      first_view = train.get_kernel(first_view)
+      second_view = train.get_kernel(second_view)
 
   # Runs model.
   train_fn = (time_training_loop(train.train_and_evaluate)

@@ -27,13 +27,14 @@ import dataclasses
 from lsmmdma.initializers import initialize
 from lsmmdma.metrics import SupervisedEvaluation
 import lsmmdma.mmdma_functions as mmdma_fn
+from math import ceil
 import numpy as np
 from tenacity import retry, stop_after_attempt
 import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
 from torch.utils import tensorboard
-from typing import Tuple, Any, Dict, DefaultDict, List
+from typing import Tuple, Any, Dict, DefaultDict, List, Union
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -53,6 +54,9 @@ class ModelGetterConfig:
   pca: bool = False
   n_seed: int = 1
   init: str = 'uniform'
+  batch_size: int = 0
+  n_av_loss: int = -1
+  use_unbiased_mmd: bool = True
 
 
 class Model(nn.Module):
@@ -176,7 +180,8 @@ class Model(nn.Module):
     """
     loss, loss_components = loss_mmdma(
         [self.weights_first_view, self.weights_second_view],
-        first_view, second_view, self.cfg_model, self.keops, self.device)
+        first_view, second_view, self.n_sample1, self.n_sample2,
+        self.cfg_model, self.keops, self.device)
     return loss, loss_components
 
 
@@ -184,6 +189,8 @@ def loss_mmdma(
     params: torch.Tensor,
     first_view: torch.Tensor,
     second_view: torch.Tensor,
+    n_first_view: int,
+    n_second_view: int,
     cfg_model: ModelGetterConfig,
     keops: bool,
     device: torch.device
@@ -203,6 +210,8 @@ def loss_mmdma(
     second_view: torch.Tensor, second set of points. The dimension of this
       tensor is (sample x feature) if mode == 'primal' and (sample x sample)
       if mode == 'dual'.
+    n_first_view: int, number of samples in the first view.
+    n_second_view: int, number of samples in the second view.
     cfg_model: ModelGetterConfig, sets parameters for the MMDMA algorithm.
     keops: bool, whether to use keops when calculating MMD.
     device: torch.device, whether a cpu or gpu ('cuda') is used.
@@ -213,12 +222,15 @@ def loss_mmdma(
   embedding_fv = torch.matmul(first_view, params[0])
   embedding_sv = torch.matmul(second_view, params[1])
   mmd = mmdma_fn.squared_mmd(
-      embedding_fv, embedding_sv, cfg_model.sigmas, keops, device)
+      embedding_fv, embedding_sv, cfg_model.sigmas, keops,
+      cfg_model.use_unbiased_mmd, device)
   if cfg_model.mode == 'primal':
     penalty_fv = mmdma_fn.pen_primal(params[0], device)
     penalty_sv = mmdma_fn.pen_primal(params[1], device)
-    distortion_fv = mmdma_fn.dis_primal(first_view, params[0])
-    distortion_sv = mmdma_fn.dis_primal(second_view, params[1])
+    distortion_fv = mmdma_fn.dis_primal(
+        first_view, params[0], n_first_view)
+    distortion_sv = mmdma_fn.dis_primal(
+        second_view, params[1], n_second_view)
   elif cfg_model.mode == 'dual':
     penalty_fv = mmdma_fn.pen_dual(embedding_fv, params[0], device)
     penalty_sv = mmdma_fn.pen_dual(embedding_sv, params[1], device)
@@ -228,7 +240,8 @@ def loss_mmdma(
     raise ValueError('cfg_model.mode must be "dual" or "primal."')
   return (mmd + cfg_model.lambda1 * (penalty_fv + penalty_sv)
           + cfg_model.lambda2 * (distortion_fv + distortion_sv),
-          (mmd, penalty_fv, penalty_sv, distortion_fv, distortion_sv))
+          (mmd.item(), penalty_fv.item(), penalty_sv.item(),
+           distortion_fv.item(), distortion_sv.item()))
 
 
 def get_kernel(data: torch.Tensor, kernel_type='linear') -> torch.Tensor:
@@ -250,24 +263,37 @@ def get_kernel(data: torch.Tensor, kernel_type='linear') -> torch.Tensor:
 
 
 def save_loss_value(
-    loss_tmp: float,
-    loss_components: Tuple[float, ...],
-    evaluation: Dict[str, float]
+    loss_tmp: List[float],
+    loss_components_tmp: List[List[float]],
+    evaluation: Dict[str, float],
+    cfg_model: ModelGetterConfig,
+    n_batch: int,
     ) -> Dict[str, float]:
   """Records loss related metrics.
 
+  The last cfg_model.n_av_loss minibatch losses are averaged to calculate
+  the reported loss and its components.
+
   Arguments:
     loss_tmp: float, loss value.
-    loss_components: tuple, components of the loss.
+    loss_components_tmp: tuple, components of the loss.
     evaluation: dictionary, records the output values.
+    cfg_model:  ModelGetterConfig, sets parameters for the MMDMA algorithm.
+    n_batch: int, number of minibatches.
 
   Returns:
     evaluation: dictionary that records the output values.
   """
-  evaluation['loss'].append(loss_tmp.data.item())
+  # TODO(lpapaxanthos): add exponential moving average.
+  n_av_loss = (n_batch if cfg_model.n_av_loss == -1
+               else np.minimum(cfg_model.n_av_loss, n_batch))
+  loss_epoch = np.mean(loss_tmp[-n_av_loss:])
+  loss_components_epoch = np.mean(
+      np.array(loss_components_tmp)[-n_av_loss:, :], axis=0)
+  evaluation['loss'].append(loss_epoch)
   for i, val in enumerate(
       ['mmd', 'pen_fv', 'pen_sv', 'dis_fv', 'dis_sv']):
-    evaluation[val].append(loss_components[i].data.item())
+    evaluation[val].append(loss_components_epoch[i])
   return evaluation
 
 
@@ -291,17 +317,19 @@ def save_evaluation(
 
 def _evaluate(
     i: int,
-    first_view: torch.FloatTensor,
-    second_view: torch.FloatTensor,
+    first_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
+    second_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
     model: torch.nn.Module,
     eval_fn: SupervisedEvaluation,
-    loss: float,
-    loss_components: Tuple[float],
+    loss: List[float],
+    loss_components: List[List[float]],
     evaluation_loss: DefaultDict[str, List[float]],
     evaluation_matching: DefaultDict[str, List[float]],
     embeddings_results: Tuple[np.ndarray],
     pca_results: Tuple[np.ndarray],
     cfg_model: ModelGetterConfig,
+    n_batch: int,
+    device: torch.device,
     summary_writer: tensorboard.SummaryWriter,
     workdir: str
     ) -> Tuple[DefaultDict[str, List[float]],
@@ -324,6 +352,8 @@ def _evaluate(
     embeddings_results: records embeddings during training.
     pca_results: records results of PCA on embeddings during training.
     cfg_model: contains the parameters of the model and algorithm.
+    n_batch: number of minibatches in one epoch.
+    device: either torch.device('cuda') or 'cpu'.
     summary_writer: summary writer for tensorboard.
     workdir: directory where the files are saved.
 
@@ -345,13 +375,18 @@ def _evaluate(
   if i == 0:
     summary_writer = init_summary()
 
+  if cfg_model.batch_size != 0:
+    first_view = first_view.dataset.to(device)
+    second_view = second_view.dataset.to(device)
+
   weights1, weights2 = list(model.parameters())
   embeddings_fv = torch.matmul(first_view, weights1)
   embeddings_sv = torch.matmul(second_view, weights2)
 
   # Records loss.
   if cfg_model.n_record != 0 and i % cfg_model.n_record == 0:
-    evaluation_loss = save_loss_value(loss, loss_components, evaluation_loss)
+    evaluation_loss = save_loss_value(
+        loss, loss_components, evaluation_loss, cfg_model, n_batch)
     if workdir:
       for key, val in evaluation_loss.items():
         summary_writer.add_scalar(f'train/{key:s}', val[-1], i)
@@ -374,12 +409,14 @@ def _evaluate(
   if ((cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0)
       or (cfg_model.n_record != 0 and i % cfg_model.n_record == 0)):
     embeddings_results.append(
-        [embeddings_fv.detach().cpu(), embeddings_sv.detach().cpu()])
+        [embeddings_fv.detach().cpu().numpy(),
+         embeddings_sv.detach().cpu().numpy()])
 
   # Saves 2-dimensional representation obtained with PCA.
   if cfg_model.pca != 0 and i % cfg_model.pca == 0:
     pca_rep_fv, pca_rep_sv = mmdma_fn.pca(
-        embeddings_fv.detach().cpu(), embeddings_sv.detach().cpu())
+        embeddings_fv.detach().cpu().numpy(),
+        embeddings_sv.detach().cpu().numpy())
     pca_results.append([pca_rep_fv, pca_rep_sv])
 
   if (i == cfg_model.n_iter - 1
@@ -394,8 +431,8 @@ def _evaluate(
 
 def train_and_evaluate(
     cfg_model: ModelGetterConfig,
-    first_view: torch.Tensor,
-    second_view: torch.Tensor,
+    first_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
+    second_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
     eval_fn: SupervisedEvaluation,
     workdir: str,
     device: torch.device,
@@ -404,7 +441,7 @@ def train_and_evaluate(
 
   Arguments:
     cfg_model: ModelGetterConfig, sets parameters for the MMDMA algorithm.
-    first_view: torch.Tensor, first view. (sample1 x feature1) if primal and
+    first_view: torch.Tensor, first view (sample1 x feature1) if primal and
       (sample1 x sample1) if dual.
     second_view: torch.Tensor, second view (sample2 x feature2) if primal and
       (sample2 x sample2) if dual.
@@ -418,8 +455,12 @@ def train_and_evaluate(
     evaluation_loss: dictionary, contains loss components.
     evaluation_matching: list of namedtuple, contains metrics values.
   """
-  n_sample1, p_feature1 = first_view.shape
-  n_sample2, p_feature2 = second_view.shape
+  if cfg_model.batch_size == 0:
+    n_sample1, p_feature1 = first_view.shape
+    n_sample2, p_feature2 = second_view.shape
+  else:
+    n_sample1, p_feature1 = first_view.dataset.shape
+    n_sample2, p_feature2 = second_view.dataset.shape
 
   cfg_model.sigmas = torch.FloatTensor([cfg_model.sigmas]).to(device)
 
@@ -455,19 +496,34 @@ def train_and_evaluate(
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg_model.learning_rate)
     model.train()
 
+    n_batch = (ceil(max(n_sample1, n_sample2) / cfg_model.batch_size)
+               if cfg_model.batch_size != 0 else 1)
+
     # TODO(lpapaxanthos): stopping criterion.
     for i in range(cfg_model.n_iter):
-      optimizer.zero_grad()
-      loss, loss_components = model(first_view, second_view)
-      loss.backward()
-      optimizer.step()
+      loss_list = list()
+      loss_components_list = list()
+      for _ in range(n_batch):
+        if cfg_model.batch_size:
+          train_first_view = next(iter(first_view)).to(device)
+          train_second_view = next(iter(second_view)).to(device)
+          optimizer.zero_grad()
+          loss, loss_components = model(train_first_view, train_second_view)
+        else:
+          optimizer.zero_grad()
+          loss, loss_components = model(first_view, second_view)
+        loss_list.append(loss.item())
+        loss_components_list.append(list(loss_components))
+        loss.backward()
+        optimizer.step()
       logging.info('Epoch: %s., train loss: %s.', i, loss)
 
       if evaluation:
-        out = _evaluate(i, first_view, second_view, model, eval_fn, loss,
-                        loss_components, evaluation_loss,
+        out = _evaluate(i, first_view, second_view, model, eval_fn, loss_list,
+                        loss_components_list, evaluation_loss,
                         evaluation_matching, embeddings_results, pca_results,
-                        cfg_model, summary_writer, workdir=inner_workdir)
+                        cfg_model, n_batch, device, summary_writer,
+                        workdir=inner_workdir)
         evaluation_loss, evaluation_matching, embeddings_results, pca_results, summary_writer = out
 
     return (loss, optimizer, model, evaluation_loss, evaluation_matching,

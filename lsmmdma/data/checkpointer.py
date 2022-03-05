@@ -85,23 +85,31 @@ def save_model(
 def save_pca(
     path: str,
     filename: str,
-    pca_results: Tuple[np.ndarray],
+    pca_results: List[np.ndarray],
     ):
   """Saves 2D representation."""
-  filename_pca = f'{filename}_pca.npy'
-  with gfile.GFile(os.path.join(path, filename_pca), 'w') as my_file:
-    np.save(my_file, np.array(pca_results))
+  filename_pca = f'{filename}_pca'
+  pca_fv = [element[0] for element in pca_results]
+  pca_sv = [element[1] for element in pca_results]
+  with gfile.GFile(os.path.join(path, filename_pca + '_fv.npy'), 'w') as myfile:
+    np.save(myfile, np.array(pca_fv))
+  with gfile.GFile(os.path.join(path, filename_pca + '_sv.npy'), 'w') as myfile:
+    np.save(myfile, np.array(pca_sv))
 
 
 def save_embeddings(
     path: str,
     filename: str,
-    embeddings_results: Tuple[np.ndarray],
+    embeddings_results: List[np.ndarray],
     ):
   """Saves low dimensional representation."""
-  filename_emb = f'{filename}_embeddings.npy'
-  with gfile.GFile(os.path.join(path, filename_emb), 'w') as my_file:
-    np.save(my_file, np.array(embeddings_results))
+  filename_emb = f'{filename}_embeddings'
+  embeddings_fv = [element[0] for element in embeddings_results]
+  embeddings_sv = [element[1] for element in embeddings_results]
+  with gfile.GFile(os.path.join(path, filename_emb + '_fv.npy'), 'w') as myfile:
+    np.save(myfile, np.array(embeddings_fv))
+  with gfile.GFile(os.path.join(path, filename_emb + '_sv.npy'), 'w') as myfile:
+    np.save(myfile, np.array(embeddings_sv))
 
 
 def save_tracking(
