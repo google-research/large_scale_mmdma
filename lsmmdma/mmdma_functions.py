@@ -50,10 +50,8 @@ def pen_dual(
   """
   low_dim = embedding.shape[1]
   identity_matrix_embedding_space = torch.eye(low_dim).to(device)
-  # penalty_value = ((torch.matmul(param.t(), embedding)
-  #                  - identity_matrix_embedding_space)**2).sum()
   penalty_value = (torch.matmul(param.t(), embedding)
-                    - identity_matrix_embedding_space).norm(2)
+                   - identity_matrix_embedding_space).norm(2)
   return penalty_value
 
 
@@ -78,10 +76,8 @@ def dis_dual(
   Returns:
     penalty_value: torch.Tensor, scalar value.
   """
-  distortion_value = ((
-      torch.matmul(embedding, embedding.t()) - kernel)**2).sum()
-  # distortion_value = (
-  #     torch.matmul(embedding, embedding.t()) - kernel).norm(2)
+  distortion_value = (
+      torch.matmul(embedding, embedding.t()) - kernel).norm(2)
   return distortion_value
 
 
@@ -229,8 +225,6 @@ def pen_primal(param: torch.Tensor, device: torch.device) -> torch.Tensor:
   """
   low_dim = param.shape[1]
   identity_matrix_embedding_space = torch.eye(low_dim).to(device)
-  # penalty_value = ((torch.matmul(param.t(), param)
-  #                  - identity_matrix_embedding_space)**2).sum()
   penalty_value = (torch.matmul(param.t(), param)
                    - identity_matrix_embedding_space).norm(2)
   return penalty_value
@@ -283,8 +277,6 @@ def dis_primal(
     diagonal_term = torch.trace(tmp)
     distortion_value = n_sample / n_batch * ((n_sample - 1) / (n_batch - 1) * (
         torch.sum(tmp) - diagonal_term) + diagonal_term)
-    # distortion_value = torch.sqrt(n_sample / n_batch * ((n_sample - 1) / (n_batch - 1) * (
-    #     torch.sum(tmp) - diagonal_term) + diagonal_term))
   else:
     gram = torch.matmul(input_view.t(), input_view)
     tmp = torch.matmul(param, torch.matmul(param.t(), gram))
@@ -294,10 +286,6 @@ def dis_primal(
         (n_sample - 1) / (n_batch - 1)
         * (torch.trace(torch.matmul(prod, prod)) - diagonal_term)
         + diagonal_term)
-    # distortion_value = torch.sqrt(n_sample / n_batch * (
-    #     (n_sample - 1) / (n_batch - 1)
-    #     * (torch.trace(torch.matmul(prod, prod)) - diagonal_term)
-    #     + diagonal_term))
   return distortion_value
 
 

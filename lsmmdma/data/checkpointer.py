@@ -57,7 +57,7 @@ def save_data_eval(
   cfg_dict = dataclasses.asdict(cfg_model)
   val = cfg_dict.get('keops', None)
   args = [flags.m, seed, flags.n, flags.p, flags.d,
-          flags.e, val, loss, mmd, res[0], res[1], res[2], runtime]
+          flags.e, val, loss, mmd, *res, runtime]
   my_file.write('\t'.join(map(str, args)) + '\n')
 
 

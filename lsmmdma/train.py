@@ -25,7 +25,7 @@ from absl import logging
 from collections import defaultdict as ddict
 import dataclasses
 from lsmmdma.initializers import initialize
-from lsmmdma.metrics import SupervisedEvaluation
+from lsmmdma.metrics import Evaluation
 import lsmmdma.mmdma_functions as mmdma_fn
 from math import ceil
 import numpy as np
@@ -320,7 +320,7 @@ def _evaluate(
     first_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
     second_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
     model: torch.nn.Module,
-    eval_fn: SupervisedEvaluation,
+    eval_fn: Evaluation,
     loss: List[float],
     loss_components: List[List[float]],
     evaluation_loss: DefaultDict[str, List[float]],
@@ -433,7 +433,7 @@ def train_and_evaluate(
     cfg_model: ModelGetterConfig,
     first_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
     second_view: Union[torch.FloatTensor, torch.utils.data.DataLoader],
-    eval_fn: SupervisedEvaluation,
+    eval_fn: Evaluation,
     workdir: str,
     device: torch.device,
     ) -> Any:
@@ -445,7 +445,7 @@ def train_and_evaluate(
       (sample1 x sample1) if dual.
     second_view: torch.Tensor, second view (sample2 x feature2) if primal and
       (sample2 x sample2) if dual.
-    eval_fn: SupervisedEvaluation dataclass, applies functions for evaluation.
+    eval_fn: Evaluation dataclass, applies functions for evaluation.
     workdir: str, path to output directory.
     device: torch.device, 'cuda' or 'cpu'.
 

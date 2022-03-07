@@ -99,6 +99,11 @@ that serves as second set of points.
 of the samples from the first view that match (ground truth) the samples from
 the second view. This is only used at evaluation time. If `--rd_vec` is not
 used, we assume that the samples of both views follow the same ordering.
+- `--labels_fv`: str (default None), filename of the vector that contains the
+labels of the samples from the first view. Must match the order of the samples
+in `input_fv`.
+- `--labels_sv`: str (default None), filename of the vector that contains the
+labels of the samples from the second view, following the same ordering.
 
 In both cases, two other flags are also available:
 - `--kernel`: bool (default False), whether the input data given by the user is
@@ -145,6 +150,10 @@ components are never recorded.
 embeddings, every 'pca' epochs. 0 means that PCA is not used on the output.
 - `--av_loss`: int (default -1), number of last minibatches of an epoch to
 average to obtain the loss that is saved.
+- `--short_eval`: bool (default True), whether or not to compute all the metrics
+(False) or only a set of them (True) (see [metrics.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/metrics.py)).
+- `--nn`: int (default 5), number of neighbours taken into account in
+the computation of the Label Transfer Accuracy metrics.
 
 **Timing** Timing the method is possible when the flag `--time` is set to True
 (default False).

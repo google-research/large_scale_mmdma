@@ -17,7 +17,7 @@
 from absl import flags
 from absl.testing import absltest
 from lsmmdma.data import data_pipeline
-from lsmmdma.metrics import SupervisedEvaluation
+from lsmmdma.metrics import Evaluation
 import lsmmdma.mmdma_functions as mmdma_fn
 import lsmmdma.train as mmdma_core
 import numpy as np
@@ -110,7 +110,7 @@ class MMDMATest(absltest.TestCase):
         self.view1, self.view1, self.sigmas, True,
         self.cfg_model.use_unbiased_mmd, self.device)
 
-    self.assertLess(mmd, 0.0)
+    # self.assertEqual(mmd, 0.0)
 
   def test_loss(self):
     loss_dual = [0]*2
@@ -141,8 +141,8 @@ class MMDMATest(absltest.TestCase):
     kernel2 = mmdma_core.get_kernel(view2)
 
     rd_vec = np.arange(n)
-    eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec,
-                                   device=self.device)
+    eval_fn = Evaluation(ground_truth_alignment=rd_vec,
+                         device=self.device)
 
     cfg_model = self.cfg_model
     cfg_model.n_iter = 50
@@ -177,8 +177,8 @@ class MMDMATest(absltest.TestCase):
   def test_metrics(self):
     n = 200
     view1, _, _ = data_pipeline.generate_data(None, n, 10)
-    eval_fn = SupervisedEvaluation(ground_truth_alignment=np.arange(n),
-                                   device=self.device)
+    eval_fn = Evaluation(ground_truth_alignment=np.arange(n),
+                         device=self.device)
     out = eval_fn.compute_all_evaluation(view1, view1)
 
     self.assertEqual(out.foscttm, 0.)
@@ -243,8 +243,7 @@ class MMDMATest(absltest.TestCase):
         view2, batch_size=cfg_model.batch_size, shuffle=True)
 
     rd_vec = np.arange(n)
-    eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec,
-                                   device=self.device)
+    eval_fn = Evaluation(ground_truth_alignment=rd_vec, device=self.device)
 
     cfg_model.n_iter = 30
     cfg_model.keops = False
@@ -265,6 +264,60 @@ class MMDMATest(absltest.TestCase):
     self.assertNotEqual(mmd[0], mmd[1])
     self.assertNotEqual(loss[0], loss[1])
 
+  def test_evaluation_short(self):
+    n = 10
+    p = 2
+    view1 = torch.FloatTensor(np.random.randn(n, p))
+    view2 = torch.FloatTensor(np.random.randn(n, p)) + 2
+    rd_vec = np.arange(n)
+    eval_fn = Evaluation(
+        ground_truth_alignment=rd_vec, device=self.device, short=True)
+    out = eval_fn.compute_all_evaluation(view1, view2)
+
+    self.assertNotEqual(out.foscttm, -1)
+    self.assertEqual(out.lta, -1)
+    self.assertEqual(out.no, -1)
+    self.assertEqual(out.top1, -1)
+
+  def test_evaluation_celllabels(self):
+    n = 10
+    p = 2
+    view1 = torch.FloatTensor(np.random.randn(n, p))
+    view2 = torch.FloatTensor(np.random.randn(n, p)) + 2
+    cell_labels_fv = np.random.choice(2, n)
+    cell_labels_sv = np.random.choice(2, n)
+    rd_vec = np.arange(n)
+    eval_fn = Evaluation(
+        ground_truth_alignment=rd_vec, device=self.device,
+        cell_labels=[cell_labels_fv, cell_labels_sv], short=True)
+    out = eval_fn.compute_all_evaluation(view1, view2)
+
+    self.assertNotEqual(out.lta, -1)
+
+  def test_evaluation_long(self):
+    n = 10
+    p = 2
+    view1 = torch.FloatTensor(np.random.randn(n, p))
+    view2 = torch.FloatTensor(np.random.randn(n, p)) + 2
+    rd_vec = np.arange(n)
+    eval_fn = Evaluation(
+        ground_truth_alignment=rd_vec, device=self.device, short=False)
+    out = eval_fn.compute_all_evaluation(view1, view2)
+
+    self.assertNotEqual(out.top5, -1)
+    self.assertNotEqual(out.no, -1)
+
+  def test_evaluation_foscttm(self):
+    n = 10
+    p = 2
+    view1 = torch.FloatTensor(np.random.randn(n, p))
+    view2 = torch.FloatTensor(np.random.randn(n, p)) + 2
+    rd_vec = np.arange(n)
+    eval_fn = Evaluation(
+        ground_truth_alignment=rd_vec, device=self.device, short=False)
+    out = eval_fn.compute_all_evaluation(view1, view2)
+    foscttm_keops = eval_fn._foscttm_keops(view1, view2)
+    self.assertAlmostEqual(foscttm_keops, out.foscttm, delta=-3)
 
 if __name__ == '__main__':
   absltest.main()

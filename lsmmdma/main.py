@@ -26,7 +26,7 @@ import dataclasses
 from lsmmdma import train
 from lsmmdma.data import checkpointer
 from lsmmdma.data import data_pipeline
-from lsmmdma.metrics import SupervisedEvaluation
+from lsmmdma.metrics import Evaluation
 import numpy as np
 import torch
 import tensorflow as tf
@@ -46,6 +46,10 @@ flags.DEFINE_enum('data', '', ['branch', 'triangle', ''],
                   'Chooses simulation or user input.')
 flags.DEFINE_integer('n', 300, 'Sample size of generated data.')
 flags.DEFINE_integer('p', 1000, 'Number of features in the generated data.')
+flags.DEFINE_string('labels_fv', None,
+                    'Filename for numerical cell labels for the first view.')
+flags.DEFINE_string('labels_sv', None,
+                    'Filename for numerical cell labels for the second view.')
 
 # Random seeds.
 flags.DEFINE_integer('seed', 0, 'Seed.')
@@ -57,6 +61,10 @@ flags.DEFINE_integer('ne', 100, 'When to evaluate.')
 flags.DEFINE_integer('nr', 100, 'When to record the loss.')
 flags.DEFINE_integer('av_loss', -1, 'Averaging the loss on X batches.')
 flags.DEFINE_integer('pca', 100, 'Applies PCA to embeddings every X epochs.')
+flags.DEFINE_bool('short_eval', True,
+                  'Whether or not to compute all the metrics.')
+flags.DEFINE_integer('nn', 5,
+                     'Number of neighbours in Label Transfer Accuracy metric.')
 
 # Flags to define the algorithm.
 flags.DEFINE_boolean('keops', True, 'Uses keops or not.')
@@ -113,6 +121,10 @@ def main(_):
   if FLAGS.m == 'dual' and FLAGS.bs != 0:
     raise ValueError("""The stochastic optimisation version of the algorithm is
                      only available with the primal formulation.""")
+  if ((FLAGS.labels_fv is not None and FLAGS.labels_sv is None)
+      or (FLAGS.labels_fv is None and FLAGS.labels_sv is not None)):
+    raise ValueError("""The flags labels_fv and labels_sv must be either both
+                     defined or both None.""")
 
   tf.config.experimental.set_visible_devices([], 'GPU')
   logging.info('cuda is available: %s', torch.cuda.is_available())
@@ -132,6 +144,12 @@ def main(_):
       rd_vec = data_pipeline.load(FLAGS.input_dir, FLAGS.rd_vec)
     else:
       rd_vec = np.arange(first_view.shape[0])
+    if FLAGS.labels_fv and FLAGS.labels_sv:
+      labels_fv = data_pipeline.load(FLAGS.input_dir, FLAGS.labels_fv)
+      labels_sv = data_pipeline.load(FLAGS.input_dir, FLAGS.labels_sv)
+      labels = [labels_fv, labels_sv]
+    else:
+      labels = None
 
   # Creates output directory and filename.
   gfile.makedirs(FLAGS.output_dir)
@@ -163,8 +181,11 @@ def main(_):
     device = 'cpu'
 
   # Prepares metrics.
-  eval_fn = SupervisedEvaluation(ground_truth_alignment=rd_vec,
-                                 device=device)
+  eval_fn = Evaluation(ground_truth_alignment=rd_vec,
+                       cell_labels=labels,
+                       device=device,
+                       short=FLAGS.short_eval,
+                       n_neighbours=FLAGS.nn)
 
   # Sets the hyperparameters of the model.
   cfg_model = train.ModelGetterConfig(
@@ -218,13 +239,16 @@ def main(_):
   foscttm = eval_matching['foscttm'][-1] if FLAGS.ne != 0 else -1
   top1 = eval_matching['top1'][-1] if FLAGS.ne != 0 else -1
   top5 = eval_matching['top5'][-1] if FLAGS.ne != 0 else -1
-  results = [foscttm, top1, top5]
+  no = eval_matching['no'][-1] if FLAGS.ne != 0 else -1
+  lta = eval_matching['lta'][-1] if FLAGS.ne != 0 else -1
+  results = [foscttm, top1, top5, no, lta]
 
   logging.info('Save results in %s.', FLAGS.output_dir)
   with gfile.GFile(
       os.path.join(FLAGS.output_dir, filename + '.tsv'), 'w') as my_file:
     colnames = ['model', 'seed', 'n_sample', 'n_feat', 'low_dim', 'n_iter',
-                'keops', 'loss', 'mmd', 'foscttm', 'top1', 'top5', 'time']
+                'keops', 'loss', 'mmd', 'foscttm', 'top1', 'top5',
+                'no', 'lta', 'time']
     my_file.write('\t'.join(colnames) + '\n')
     checkpointer.save_data_eval(
         my_file, FLAGS, seed, loss, mmd, results, runtime, cfg_model)
