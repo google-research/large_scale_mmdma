@@ -137,6 +137,7 @@ def main(_):
         n_sample=FLAGS.n,
         p_feature=FLAGS.p,
         simulation=FLAGS.data)
+    labels = None
   else:
     first_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_fv)
     second_view = data_pipeline.load(FLAGS.input_dir, FLAGS.input_sv)

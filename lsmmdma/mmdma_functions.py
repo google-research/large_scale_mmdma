@@ -37,8 +37,8 @@ def pen_dual(
   where K is the n*n kernel matrix of the n points in the input space.
   The 'embedding' matrix corresponds to the mapped set of points.
   The non-collapsing penalty is then equal to
-  ||param.T * K * param - I ||_2^2, where I is the low_dim*low_dim
-  identity matrix, which is also equal to ||param.T * embedding - I ||_2^2.
+  ||param.T * K * param - I ||_2, where I is the low_dim*low_dim
+  identity matrix, which is also equal to ||param.T * embedding - I ||_2.
 
   Arguments:
     embedding: torch.Tensor, low dimensional representation of a view.
@@ -66,8 +66,8 @@ def dis_dual(
   embedding=K*param, where K is the n*n kernel matrix of the n points in the
   input space and the n*low_dim 'param' matrix is the model parameter.  The
   'embedding' matrix corresponds to the mapped set of points.
-  The distortion penalty is then equal to ||K * param * param.T * K - K ||_2^2,
-  which is also equal to ||embedding * embedding.T - K||_2^2.
+  The distortion penalty is then equal to ||K * param * param.T * K - K ||_2,
+  which is also equal to ||embedding * embedding.T - K||_2.
 
   Arguments:
     embedding: torch.Tensor, low dimensional representation of a view.
@@ -214,7 +214,7 @@ def pen_primal(param: torch.Tensor, device: torch.device) -> torch.Tensor:
   """Computes non-collapsing penalty for the primal formulation.
 
   In the primal formulation, the 'param' matrix is the n*low_dim model parameter
-  and the non-collapsing penalty is equal to ||param.T * param - I||,
+  and the non-collapsing penalty is equal to ||param.T * param - I||_2,
   where I is the low_dim*low_dim identity matrix.
 
   Arguments:
@@ -243,7 +243,7 @@ def dis_primal(
   distortion penalty can be written as
 
   distortion = ||input_view*input_view.T
-                 - input_view*param*param.T*input_view.T||_2^2.
+                 - input_view*param*param.T*input_view.T||_2.
 
   Let b the batch size. Let
   dis_mat = input_view*input_view.T - input_view*param*param.T*input_view.T
@@ -256,8 +256,8 @@ def dis_primal(
   The unbiased_distortion is computed as is when n < p. However, if n > p, we
   compute the following formulation for the distortion variable:
 
-  distortion = Tr((I - param*param.T)*input_view.T*input_view
-  *(I - param*param.T)*input_view.T*input_view)
+  distortion = torch.sqrt(Tr((I - param*param.T)*input_view.T*input_view
+  *(I - param*param.T)*input_view.T*input_view))
 
   to avoid computing terms that are O(n**2) in memory or runtime.
 
@@ -275,17 +275,18 @@ def dis_primal(
         torch.matmul(input_view, param), param.t()), input_view.t())
     tmp = (inner_prod - tmp)**2
     diagonal_term = torch.trace(tmp)
-    distortion_value = n_sample / n_batch * ((n_sample - 1) / (n_batch - 1) * (
-        torch.sum(tmp) - diagonal_term) + diagonal_term)
+    distortion_value = torch.sqrt(
+        n_sample / n_batch * ((n_sample - 1) / (n_batch - 1) * (
+            torch.sum(tmp) - diagonal_term) + diagonal_term))
   else:
     gram = torch.matmul(input_view.t(), input_view)
     tmp = torch.matmul(param, torch.matmul(param.t(), gram))
     prod = gram - tmp
     diagonal_term = torch.trace(prod)
-    distortion_value = n_sample / n_batch * (
+    distortion_value = torch.sqrt(n_sample / n_batch * (
         (n_sample - 1) / (n_batch - 1)
-        * (torch.trace(torch.matmul(prod, prod)) - diagonal_term)
-        + diagonal_term)
+        * (torch.trace(torch.matmul(prod, prod)) - diagonal_term))
+                                  + diagonal_term)
   return distortion_value
 
 
