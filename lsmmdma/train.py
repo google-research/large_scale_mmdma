@@ -54,8 +54,6 @@ class ModelGetterConfig:
   pca: bool = False
   n_seed: int = 1
   init: str = 'uniform'
-  batch_size: int = 0
-  n_av_loss: int = -1
   use_unbiased_mmd: bool = True
 
 
@@ -263,37 +261,24 @@ def get_kernel(data: torch.Tensor, kernel_type='linear') -> torch.Tensor:
 
 
 def save_loss_value(
-    loss_tmp: List[float],
-    loss_components_tmp: List[List[float]],
+    loss_tmp: float,
+    loss_components_tmp: List[float],
     evaluation: Dict[str, float],
-    cfg_model: ModelGetterConfig,
-    n_batch: int,
     ) -> Dict[str, float]:
   """Records loss related metrics.
-
-  The last cfg_model.n_av_loss minibatch losses are averaged to calculate
-  the reported loss and its components.
 
   Arguments:
     loss_tmp: float, loss value.
     loss_components_tmp: tuple, components of the loss.
     evaluation: dictionary, records the output values.
-    cfg_model:  ModelGetterConfig, sets parameters for the MMDMA algorithm.
-    n_batch: int, number of minibatches.
 
   Returns:
     evaluation: dictionary that records the output values.
   """
-  # TODO(lpapaxanthos): add exponential moving average.
-  n_av_loss = (n_batch if cfg_model.n_av_loss == -1
-               else np.minimum(cfg_model.n_av_loss, n_batch))
-  loss_epoch = np.mean(loss_tmp[-n_av_loss:])
-  loss_components_epoch = np.mean(
-      np.array(loss_components_tmp)[-n_av_loss:, :], axis=0)
-  evaluation['loss'].append(loss_epoch)
+  evaluation['loss'].append(loss_tmp.item())
   for i, val in enumerate(
       ['mmd', 'pen_fv', 'pen_sv', 'dis_fv', 'dis_sv']):
-    evaluation[val].append(loss_components_epoch[i])
+    evaluation[val].append(loss_components_tmp[i])
   return evaluation
 
 
@@ -328,7 +313,6 @@ def _evaluate(
     embeddings_results: Tuple[np.ndarray],
     pca_results: Tuple[np.ndarray],
     cfg_model: ModelGetterConfig,
-    n_batch: int,
     device: torch.device,
     summary_writer: tensorboard.SummaryWriter,
     workdir: str
@@ -352,7 +336,6 @@ def _evaluate(
     embeddings_results: records embeddings during training.
     pca_results: records results of PCA on embeddings during training.
     cfg_model: contains the parameters of the model and algorithm.
-    n_batch: number of minibatches in one epoch.
     device: either torch.device('cuda') or 'cpu'.
     summary_writer: summary writer for tensorboard.
     workdir: directory where the files are saved.
@@ -375,10 +358,6 @@ def _evaluate(
   if i == 0:
     summary_writer = init_summary()
 
-  if cfg_model.batch_size != 0:
-    first_view = first_view.dataset.to(device)
-    second_view = second_view.dataset.to(device)
-
   weights1, weights2 = list(model.parameters())
   embeddings_fv = torch.matmul(first_view, weights1)
   embeddings_sv = torch.matmul(second_view, weights2)
@@ -386,7 +365,7 @@ def _evaluate(
   # Records loss.
   if cfg_model.n_record != 0 and i % cfg_model.n_record == 0:
     evaluation_loss = save_loss_value(
-        loss, loss_components, evaluation_loss, cfg_model, n_batch)
+        loss, loss_components, evaluation_loss)
     if workdir:
       for key, val in evaluation_loss.items():
         summary_writer.add_scalar(f'train/{key:s}', val[-1], i)
@@ -455,12 +434,8 @@ def train_and_evaluate(
     evaluation_loss: dictionary, contains loss components.
     evaluation_matching: list of namedtuple, contains metrics values.
   """
-  if cfg_model.batch_size == 0:
-    n_sample1, p_feature1 = first_view.shape
-    n_sample2, p_feature2 = second_view.shape
-  else:
-    n_sample1, p_feature1 = first_view.dataset.shape
-    n_sample2, p_feature2 = second_view.dataset.shape
+  n_sample1, p_feature1 = first_view.shape
+  n_sample2, p_feature2 = second_view.shape
 
   cfg_model.sigmas = torch.FloatTensor([cfg_model.sigmas]).to(device)
 
@@ -496,33 +471,19 @@ def train_and_evaluate(
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg_model.learning_rate)
     model.train()
 
-    n_batch = (ceil(max(n_sample1, n_sample2) / cfg_model.batch_size)
-               if cfg_model.batch_size != 0 else 1)
-
     # TODO(lpapaxanthos): stopping criterion.
     for i in range(cfg_model.n_iter):
-      loss_list = list()
-      loss_components_list = list()
-      for _ in range(n_batch):
-        if cfg_model.batch_size:
-          train_first_view = next(iter(first_view)).to(device)
-          train_second_view = next(iter(second_view)).to(device)
-          optimizer.zero_grad()
-          loss, loss_components = model(train_first_view, train_second_view)
-        else:
-          optimizer.zero_grad()
-          loss, loss_components = model(first_view, second_view)
-        loss_list.append(loss.item())
-        loss_components_list.append(list(loss_components))
-        loss.backward()
-        optimizer.step()
+      optimizer.zero_grad()
+      loss, loss_components = model(first_view, second_view)
+      loss.backward()
+      optimizer.step()
       logging.info('Epoch: %s., train loss: %s.', i, loss)
 
       if evaluation:
-        out = _evaluate(i, first_view, second_view, model, eval_fn, loss_list,
-                        loss_components_list, evaluation_loss,
+        out = _evaluate(i, first_view, second_view, model, eval_fn, loss,
+                        loss_components, evaluation_loss,
                         evaluation_matching, embeddings_results, pca_results,
-                        cfg_model, n_batch, device, summary_writer,
+                        cfg_model, device, summary_writer,
                         workdir=inner_workdir)
         evaluation_loss, evaluation_matching, embeddings_results, pca_results, summary_writer = out
 

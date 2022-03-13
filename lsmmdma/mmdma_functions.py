@@ -245,16 +245,8 @@ def dis_primal(
   distortion = ||input_view*input_view.T
                  - input_view*param*param.T*input_view.T||_2.
 
-  Let b the batch size. Let
-  dis_mat = input_view*input_view.T - input_view*param*param.T*input_view.T
-  In order to have a unbiased distortion, we can write:
-
-  unbiased_distortion =
-    n / b * (n - 1) / (b - 1) * (distortion - torch.trace(dis_mat^2))
-    + n / b * torch.trace(dis_mat^2)
-
-  The unbiased_distortion is computed as is when n < p. However, if n > p, we
-  compute the following formulation for the distortion variable:
+  The distortion is computed as is when n < p. However, if n > p, we
+  compute the following formulation:
 
   distortion = torch.sqrt(Tr((I - param*param.T)*input_view.T*input_view
   *(I - param*param.T)*input_view.T*input_view))
@@ -268,25 +260,18 @@ def dis_primal(
   Returns:
     distortion_value: torch.Tensor, scalar value.
   """
-  n_batch, p_feature = input_view.shape
-  if n_batch < p_feature:
+  n_sample, p_feature = input_view.shape
+  if n_sample < p_feature:
     inner_prod = torch.matmul(input_view, input_view.t())
     tmp = torch.matmul(torch.matmul(
         torch.matmul(input_view, param), param.t()), input_view.t())
     tmp = (inner_prod - tmp)**2
-    diagonal_term = torch.trace(tmp)
-    distortion_value = torch.sqrt(
-        n_sample / n_batch * ((n_sample - 1) / (n_batch - 1) * (
-            torch.sum(tmp) - diagonal_term) + diagonal_term))
+    distortion_value = torch.sqrt(torch.sum(tmp))
   else:
     gram = torch.matmul(input_view.t(), input_view)
     tmp = torch.matmul(param, torch.matmul(param.t(), gram))
     prod = gram - tmp
-    diagonal_term = torch.trace(prod)
-    distortion_value = torch.sqrt(n_sample / n_batch * (
-        (n_sample - 1) / (n_batch - 1)
-        * (torch.trace(torch.matmul(prod, prod)) - diagonal_term))
-                                  + diagonal_term)
+    distortion_value = torch.sqrt(torch.trace(torch.matmul(prod, prod)))
   return distortion_value
 
 

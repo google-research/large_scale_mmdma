@@ -17,12 +17,12 @@ r"""Main module that generates the data and trains the model.
 
 Instructions can be found on the readme.md document.
 """
+import dataclasses
 import os
 
 from absl import app
 from absl import flags
 from absl import logging
-import dataclasses
 from lsmmdma import train
 from lsmmdma.data import checkpointer
 from lsmmdma.data import data_pipeline
@@ -59,7 +59,6 @@ flags.DEFINE_integer('ns', 1, 'Number of seeds with which to run the model.')
 flags.DEFINE_integer('e', 5001, 'Number of epochs.')
 flags.DEFINE_integer('ne', 100, 'When to evaluate.')
 flags.DEFINE_integer('nr', 100, 'When to record the loss.')
-flags.DEFINE_integer('av_loss', -1, 'Averaging the loss on X batches.')
 flags.DEFINE_integer('pca', 100, 'Applies PCA to embeddings every X epochs.')
 flags.DEFINE_bool('short_eval', True,
                   'Whether or not to compute all the metrics.')
@@ -69,7 +68,6 @@ flags.DEFINE_integer('nn', 5,
 # Flags to define the algorithm.
 flags.DEFINE_boolean('keops', True, 'Uses keops or not.')
 flags.DEFINE_enum('m', 'dual', ['dual', 'primal'], 'Dual or primal mode.')
-flags.DEFINE_integer('bs', 0, 'Batch size.')
 flags.DEFINE_bool('use_unbiased_mmd', True, 'Use unbiased MMD or not.')
 
 # Flags for model hyperparameters.
@@ -118,9 +116,6 @@ def main(_):
   if FLAGS.kernel and FLAGS.m == 'primal':
     raise ValueError(f"""The flag kernel set to {FLAGS.kernel} is not compatible
                      with the flag mode set to {FLAGS.m}""")
-  if FLAGS.m == 'dual' and FLAGS.bs != 0:
-    raise ValueError("""The stochastic optimisation version of the algorithm is
-                     only available with the primal formulation.""")
   if ((FLAGS.labels_fv is not None and FLAGS.labels_sv is None)
       or (FLAGS.labels_fv is None and FLAGS.labels_sv is not None)):
     raise ValueError("""The flags labels_fv and labels_sv must be either both
@@ -164,8 +159,7 @@ def main(_):
                        's' + str(FLAGS.s),
                        'l1' + str(FLAGS.l1),
                        'l2' + str(FLAGS.l2),
-                       'init' + str(FLAGS.init),
-                       'bs' + str(FLAGS.bs)])
+                       'init' + str(FLAGS.init)])
   if FLAGS.data:
     filename = ':'.join([filename,
                          'n' + str(FLAGS.n),
@@ -204,23 +198,15 @@ def main(_):
       lambda2=FLAGS.l2,
       pca=FLAGS.pca,
       init=FLAGS.init,
-      batch_size=FLAGS.bs,
-      n_av_loss=FLAGS.av_loss,
       use_unbiased_mmd=FLAGS.use_unbiased_mmd
       )
 
   # Prepares input.
-  if cfg_model.batch_size != 0:
-    first_view = torch.utils.data.DataLoader(
-        first_view, batch_size=cfg_model.batch_size, shuffle=True)
-    second_view = torch.utils.data.DataLoader(
-        second_view, batch_size=cfg_model.batch_size, shuffle=True)
-  else:
-    first_view = torch.FloatTensor(first_view).to(device)
-    second_view = torch.FloatTensor(second_view).to(device)
-    if cfg_model.mode == 'dual' and not FLAGS.kernel:
-      first_view = train.get_kernel(first_view)
-      second_view = train.get_kernel(second_view)
+  first_view = torch.FloatTensor(first_view).to(device)
+  second_view = torch.FloatTensor(second_view).to(device)
+  if cfg_model.mode == 'dual' and not FLAGS.kernel:
+    first_view = train.get_kernel(first_view)
+    second_view = train.get_kernel(second_view)
 
   # Runs model.
   train_fn = (time_training_loop(train.train_and_evaluate)

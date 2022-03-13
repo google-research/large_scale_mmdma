@@ -34,11 +34,9 @@ of runtime and memory, while if `n >> p`, the primal
 formulation is favorable.
 
 Additionally, in order to scale the computation of MMD to a large number of
-samples, we propose either to:
-- use the
+samples, we propose either to use the
 [KeOps](https://www.kernel-operations.io/keops/index.html) library which
 lets you compute large kernel operations on GPUs without memory overflow.
-- or to use stochastic gradient descent with minibatches.
 
 ## Installation<a id="installation"></a>
 
@@ -115,9 +113,6 @@ a kernel (n x n instead of n x p). This parameter can only be set to True when
 the 'primal' or 'dual' formulation, and using KeOps or not.
 - `--m`: str, either 'primal' or 'dual' (default).
 - `--keops`: bool, either True (default) or False.
-- `--bs`: int (default 0), defines the size of the batch for a stochastic
-optimisation. If 0, then each gradient step is calculated on the whole data
-instead. The stochastic optimisation is only available for mode `--m==primal`.
 - `--use_unbiased_mmd`: bool (default True), determines whether or not to use
 the unbiased version of MMD (see [Gretton et al. 2012](https://www.jmlr.org/papers/volume13/gretton12a/gretton12a.pdf) Lemma 6).
 
@@ -148,8 +143,6 @@ of the loss are recorded, every 'ne' epochs. 0 means that the loss and its
 components are never recorded.
 - `--pca`: int (default 100), regular interval at which PCA is performed on the
 embeddings, every 'pca' epochs. 0 means that PCA is not used on the output.
-- `--av_loss`: int (default -1), number of last minibatches of an epoch to
-average to obtain the loss that is saved.
 - `--short_eval`: bool (default True), whether or not to compute all the metrics
 (False) or only a set of them (True) (see [metrics.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/metrics.py)).
 - `--nn`: int (default 5), number of neighbours taken into account in
@@ -163,9 +156,6 @@ the computation of the Label Transfer Accuracy metrics.
 We show now a few examples of usage of the command line to run the algorithm. We
 also introduce two notebooks that display the usage of the algorithm and its
 runtime.
-
-The first four examples show how to run the algorithm without the stochastic
-optimisation option. Each gradient step is done on the whole dataset.
 
 1. To run the algorithm on simulated data from [data_pipeline.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/data/data_pipeline.py),
 a minimal set of commands is:
@@ -212,18 +202,6 @@ python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
 --seed 4 --ns 5 \
 --keops True --m dual \
 --e 1001 --nr 100 --ne 100 --pca 100 \
---d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
-```
-
-5. The next example shows how to use the stochastic optimisation option. This
-option only exists in the primal.
-
-```bash
-python3 -m lsmmdma.main --input_dir datadir --output_dir outdir \
---input_fv my_data_1 --input_sv my_data_2 \
---seed 4 --ns 5 \
---keops False --m dual --bs 1000 \
---e 1001 --nr 100 --ne 100 --pca 100 --av_loss -1 \
 --d 5 --lr 1e-5 --l1 1e-4 --l2 1e-4 --s 1.0 --init 'uniform,0,0.1'
 ```
 

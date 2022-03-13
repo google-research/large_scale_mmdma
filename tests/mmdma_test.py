@@ -66,8 +66,6 @@ class MMDMATest(absltest.TestCase):
         lambda1=0.001,
         lambda2=0.001,
         init='uniform',
-        batch_size=0,
-        n_av_loss=-1,
         use_unbiased_mmd=True
         )
 
@@ -197,22 +195,6 @@ class MMDMATest(absltest.TestCase):
         distance1[2, 0].item(), distance2[2, 0].item(), delta=1e-5)
 
   def test_unbiased_functions(self):
-    # Testing for n < p
-    dis_val_primal_a = mmdma_fn.dis_primal(self.view1, self.param1_primal,
-                                           self.n)
-    dis_val_primal_b = mmdma_fn.dis_primal(self.view1, self.param1_primal,
-                                           self.n - 1)
-    self.assertNotEqual(dis_val_primal_a, dis_val_primal_b)
-
-    # Testing for n > p
-    dis_val_primal_a = mmdma_fn.dis_primal(self.view1[:, :2],
-                                           self.param1_primal[:2, :],
-                                           self.n)
-    dis_val_primal_b = mmdma_fn.dis_primal(self.view1[:, :2],
-                                           self.param1_primal[:2, :],
-                                           self.n - 1)
-    self.assertNotEqual(dis_val_primal_a, dis_val_primal_b)
-
     # Testing biased MMD for keops and without keops are equal
     mmd_a = mmdma_fn.squared_mmd(
         self.view1, self.view2, self.sigmas, False, False, self.device)
@@ -228,41 +210,6 @@ class MMDMATest(absltest.TestCase):
         self.view1, self.view2, self.sigmas, True,
         self.cfg_model.use_unbiased_mmd, self.device)
     self.assertAlmostEqual(mmd_a, mmd_b, delta=1e-4)
-
-  def test_minibatch(self):
-    n = 20
-    p = 10
-
-    cfg_model = self.cfg_model
-    cfg_model.batch_size = 5
-    view1 = torch.FloatTensor(np.random.randn(n, p))
-    view2 = torch.FloatTensor(np.random.randn(n, p)) + 2.0
-    view1 = torch.utils.data.DataLoader(
-        view1, batch_size=cfg_model.batch_size, shuffle=True)
-    view2 = torch.utils.data.DataLoader(
-        view2, batch_size=cfg_model.batch_size, shuffle=True)
-
-    rd_vec = np.arange(n)
-    eval_fn = Evaluation(ground_truth_alignment=rd_vec, device=self.device)
-
-    cfg_model.n_iter = 30
-    cfg_model.keops = False
-    cfg_model.mode = 'primal'
-    cfg_model.n_eval = 29
-    loss = []
-    mmd = []
-    for av_loss in [-1, 2]:
-      cfg_model.n_av_loss = av_loss
-      # Runs model.
-      out = mmdma_core.train_and_evaluate(
-          cfg_model, view1, view2, eval_fn, workdir='', device=self.device)
-      _, _, evaluation_loss, *_ = out
-
-      loss.append(evaluation_loss['loss'][-1])
-      mmd.append(evaluation_loss['mmd'][-1])
-
-    self.assertNotEqual(mmd[0], mmd[1])
-    self.assertNotEqual(loss[0], loss[1])
 
   def test_evaluation_short(self):
     n = 10

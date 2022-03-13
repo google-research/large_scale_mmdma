@@ -16,14 +16,13 @@
 """Evaluation metrics."""
 import dataclasses
 import logging
-from lsmmdma.mmdma_functions import compute_sqpairwise_distances
 import math
+from typing import Optional, List
+from lsmmdma.mmdma_functions import compute_sqpairwise_distances
 import numpy as np
 from pykeops.torch import LazyTensor
-import scipy
 from sklearn.neighbors import KNeighborsClassifier
 import torch
-from typing import Optional, List
 
 
 @dataclasses.dataclass()
