@@ -1,0 +1,13 @@
+absl-py
+numpy
+torch>=1.10
+tensorflow-cpu==2.7
+pykeops
+typing
+dataclasses
+cmake==3.18
+setuptools==59.5.0
+tenacity
+sklearn
+scanpy
+sklearn
