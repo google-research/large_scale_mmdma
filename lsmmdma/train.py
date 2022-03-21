@@ -379,7 +379,10 @@ def _evaluate(
     logging.info('Train evaluation: %s.', eval_out)
     if workdir:
       for key, val in eval_out_dict.items():
-        summary_writer.add_scalar(f'train/{key:s}', val, i)
+        if key != 'no':
+          summary_writer.add_scalar(f'train/{key:s}', val, i)
+        else:
+          summary_writer.add_histogram(f'train/{key:s}', val, i)
         logging.info('Flushing TensorBoard writer.')
     evaluation_matching = save_evaluation(
         eval_out_dict, evaluation_matching)
