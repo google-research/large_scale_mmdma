@@ -296,7 +296,10 @@ def save_evaluation(
     evaluation: dictionary that records the output values.
   """
   for key, val in evaluation_tmp.items():
-    evaluation[key].append(val)
+    if key == 'no':
+      evaluation[key].append(val.tolist())
+    else:
+      evaluation[key].append(val)
   return evaluation
 
 
