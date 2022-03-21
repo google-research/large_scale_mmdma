@@ -297,7 +297,8 @@ def save_evaluation(
   """
   for key, val in evaluation_tmp.items():
     if key == 'no':
-      evaluation[key].append(val.tolist())
+      val = val if isinstance(val, int) else val.tolist()
+      evaluation[key].append(val)
     else:
       evaluation[key].append(val)
   return evaluation
