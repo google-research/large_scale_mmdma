@@ -178,7 +178,7 @@ class Evaluation():
     cttm2 = (diagonal2 - distance_ij).sign().relu()
     cttm1 = cttm1.sum(1)
     cttm2 = cttm2.sum(1)
-    return (cttm1.sum() + cttm2.sum()) / (n * (n - 1) * 2)
+    return (cttm1.sum().item() + cttm2.sum().item()) / (n * (n - 1) * 2)
 
   def _topx_keops(
       self,
