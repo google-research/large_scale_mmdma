@@ -10,4 +10,5 @@ setuptools==59.5.0
 tenacity
 sklearn
 scanpy
+scipy
 sklearn

@@ -65,6 +65,12 @@ flags.DEFINE_bool('short_eval', True,
 flags.DEFINE_integer('nn', 5,
                      'Number of neighbours in Label Transfer Accuracy metric.')
 
+# Stopping criterion
+flags.DEFINE_integer('ws', -1,
+                     """Window size for the stopping criterion, -1 indicates
+                     that the algorithm stops at the last epoch.""")
+flags.DEFINE_float('threshold', 1e-3, 'Threshold for the stopping criterion.')
+
 # Flags to define the algorithm.
 flags.DEFINE_boolean('keops', True, 'Uses keops or not.')
 flags.DEFINE_enum('m', 'dual', ['dual', 'primal'], 'Dual or primal mode.')
@@ -198,12 +204,17 @@ def main(_):
       lambda2=FLAGS.l2,
       pca=FLAGS.pca,
       init=FLAGS.init,
-      use_unbiased_mmd=FLAGS.use_unbiased_mmd
+      use_unbiased_mmd=FLAGS.use_unbiased_mmd,
+      window_size=FLAGS.ws,
+      threshold=FLAGS.threshold
       )
 
   # Prepares input.
   first_view = torch.FloatTensor(first_view).to(device)
   second_view = torch.FloatTensor(second_view).to(device)
+  n = (first_view.shape[0], second_view.shape[0])
+  p = ((first_view.shape[1], second_view.shape[1])
+       if not FLAGS.kernel else (-1, -1))
   if cfg_model.mode == 'dual' and not FLAGS.kernel:
     first_view = train.get_kernel(first_view)
     second_view = train.get_kernel(second_view)
@@ -238,16 +249,15 @@ def main(_):
                 'no', 'lta', 'time']
     my_file.write('\t'.join(colnames) + '\n')
     checkpointer.save_data_eval(
-        my_file, FLAGS, seed, loss, mmd, results, runtime, cfg_model)
-  if FLAGS.ne != 0:
-    logging.info('Save tracking in %s.', FLAGS.output_dir)
-    checkpointer.save_tracking(FLAGS.output_dir,
-                               filename,
-                               eval_loss,
-                               eval_matching,
-                               seed,
-                               FLAGS.e,
-                               cfg_model)
+        my_file, FLAGS, n, p, seed, loss, mmd, results, runtime, cfg_model)
+  logging.info('Save tracking in %s.', FLAGS.output_dir)
+  checkpointer.save_tracking(FLAGS.output_dir,
+                             filename,
+                             eval_loss,
+                             eval_matching,
+                             seed,
+                             FLAGS.e,
+                             cfg_model)
   logging.info('Save model in %s.', FLAGS.output_dir)
   checkpointer.save_model(
       FLAGS.output_dir, filename, optim, model, seed, FLAGS.e, loss)

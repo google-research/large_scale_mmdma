@@ -21,6 +21,7 @@ from typing import Tuple, Union
 from lsmmdma.data.checkpointer import save_generated_data
 import numpy as np
 import scanpy
+import scipy
 import torch
 from tensorflow.io import gfile
 
@@ -123,7 +124,10 @@ def load(input_dir: str, filename: str) -> np.ndarray:
   with gfile.GFile(path_file, 'rb') as my_file:
     if file_ext == '.h5ad':
       data = scanpy.read_h5ad(my_file)
-      data = data.X.todense()
+      if scipy.sparse.isparse(data.X):
+        data = data.X.todense()
+      else:
+        data = data.X
     elif file_ext == '.npy':
       data = np.load(my_file)
     elif file_ext == '.tsv':

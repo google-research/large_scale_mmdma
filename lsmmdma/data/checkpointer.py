@@ -46,6 +46,8 @@ def save_generated_data(
 def save_data_eval(
     my_file: gfile.GFile,
     flags: absl.flags,
+    n: Tuple[int],
+    p: Tuple[int],
     seed: int,
     loss: float,
     mmd: float,
@@ -56,7 +58,7 @@ def save_data_eval(
   """Saves main results."""
   cfg_dict = dataclasses.asdict(cfg_model)
   val = cfg_dict.get('keops', None)
-  args = [flags.m, seed, flags.n, flags.p, flags.d,
+  args = [flags.m, seed, n, p, flags.d,
           flags.e, val, loss, mmd, *res, runtime]
   my_file.write('\t'.join(map(str, args)) + '\n')
 

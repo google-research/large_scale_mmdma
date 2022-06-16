@@ -55,6 +55,8 @@ class ModelGetterConfig:
   n_seed: int = 1
   init: str = 'uniform'
   use_unbiased_mmd: bool = True
+  window_size: int = -1
+  threshold: float = 1e-3
 
 
 class Model(nn.Module):
@@ -275,7 +277,6 @@ def save_loss_value(
   Returns:
     evaluation: dictionary that records the output values.
   """
-  evaluation['loss'].append(loss_tmp.item())
   for i, val in enumerate(
       ['mmd', 'pen_fv', 'pen_sv', 'dis_fv', 'dis_sv']):
     evaluation[val].append(loss_components_tmp[i])
@@ -302,6 +303,38 @@ def save_evaluation(
     else:
       evaluation[key].append(val)
   return evaluation
+
+
+def stopping_criterion(i: int,
+                       cfg_model: ModelGetterConfig,
+                       evaluation_loss: DefaultDict[str, List[float]]) -> bool:
+  """Computes a stopping criterion.
+
+  The algorithm stops when the relative difference between the average of the
+  loss over two consecutive windows of size ``cfg_model.window_size`` is smaller
+  than cfg_model.threshold or if a maximum number of epochs ``cfg_model.n_iter``
+  is attained.
+
+  Args:
+    i: number of epochs.
+    cfg_model: model and algorithm parameters.
+    evaluation_loss: defaultdict where values of loss components are stored.
+
+  Returns:
+    Whether to stop the algorithm.
+  """
+  ws = cfg_model.window_size
+  if i >= cfg_model.n_iter:
+    return True
+  if ws == -1:
+    return i >= cfg_model.n_iter
+  if i < ws * 2:
+    return False
+  average_t = np.mean(evaluation_loss['loss'][-2 * ws: -ws])
+  average_tplus1 = np.mean(evaluation_loss['loss'][-ws:])
+  ratio = np.absolute(
+      average_t - average_tplus1) / np.maximum(np.absolute(average_t), 1.)
+  return ratio < cfg_model.threshold
 
 
 def _evaluate(
@@ -479,12 +512,14 @@ def train_and_evaluate(
     model.train()
 
     # TODO(lpapaxanthos): stopping criterion.
-    for i in range(cfg_model.n_iter):
+    i = 0
+    while not stopping_criterion(i, cfg_model, evaluation_loss):
       optimizer.zero_grad()
       loss, loss_components = model(first_view, second_view)
       loss.backward()
       optimizer.step()
       logging.info('Epoch: %s., train loss: %s.', i, loss)
+      evaluation_loss['loss'].append(loss.item())
 
       if evaluation:
         out = _evaluate(i, first_view, second_view, model, eval_fn, loss,
@@ -493,6 +528,7 @@ def train_and_evaluate(
                         cfg_model, device, summary_writer,
                         workdir=inner_workdir)
         evaluation_loss, evaluation_matching, embeddings_results, pca_results, summary_writer = out
+      i += 1
 
     return (loss, optimizer, model, evaluation_loss, evaluation_matching,
             embeddings_results, pca_results)
