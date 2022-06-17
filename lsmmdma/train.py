@@ -511,7 +511,6 @@ def train_and_evaluate(
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg_model.learning_rate)
     model.train()
 
-    # TODO(lpapaxanthos): stopping criterion.
     i = 0
     while not stopping_criterion(i, cfg_model, evaluation_loss):
       optimizer.zero_grad()
