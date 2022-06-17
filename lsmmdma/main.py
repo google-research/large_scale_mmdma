@@ -66,8 +66,8 @@ flags.DEFINE_integer('nn', 5,
                      'Number of neighbours in Label Transfer Accuracy metric.')
 
 # Stopping criterion
-flags.DEFINE_integer('ws', -1,
-                     """Window size for the stopping criterion, -1 indicates
+flags.DEFINE_integer('ws', 0,
+                     """Window size for the stopping criterion, 0 indicates
                      that the algorithm stops at the last epoch.""")
 flags.DEFINE_float('threshold', 1e-3, 'Threshold for the stopping criterion.')
 

@@ -150,7 +150,9 @@ embeddings, every 'pca' epochs. 0 means that PCA is not used on the output.
 - `--nn`: int (default 5), number of neighbours taken into account in
 the computation of the Label Transfer Accuracy metrics.
 
-**Stopping criterion** Two flags enable to control the [stopping criterion](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py#L293)
+**Stopping criterion** Two flags enable to control the [stopping criterion](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py#L293):
+- `--ws`: int (default 0), window size on which the loss is averaged for the stopping criterion. If set to 0, the algorithm stops at the last epoch without loss-based stopping criterion.
+- `--threshold`: float (default 1e-3), threshold for the stopping criterion.
 
 **Timing** Timing the method is possible when the flag `--time` is set to True
 (default False).

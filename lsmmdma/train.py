@@ -326,7 +326,7 @@ def stopping_criterion(i: int,
   ws = cfg_model.window_size
   if i >= cfg_model.n_iter:
     return True
-  if ws == -1:
+  if ws == 0:
     return i >= cfg_model.n_iter
   if i < ws * 2:
     return False
