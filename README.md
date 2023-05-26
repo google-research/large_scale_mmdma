@@ -114,7 +114,8 @@ a kernel (n x n instead of n x p). This parameter can only be set to True when
 **Model** The flags allow you to choose between four algorithms, using either
 the 'primal' or 'dual' formulation, and using KeOps or not.
 - `--m`: str, either 'primal' or 'dual' (default).
-- `--keops`: bool, either True (default) or False.
+- `--keops`: integer, either 1 (use keops), 0 (not not use keops) or -1 (automatic, uses keops
+from 4000 samples onwards) (default).
 - `--use_unbiased_mmd`: bool (default True), determines whether or not to use
 the unbiased version of MMD (see [Gretton et al. 2012](https://www.jmlr.org/papers/volume13/gretton12a/gretton12a.pdf) Lemma 6).
 
@@ -130,8 +131,10 @@ the number of seeds to try with: `--ns` (int, default value is 1).
 parameters. It can be sampled from a 'uniform', 'normal', 'xavier_uniform' or
 'xavier_normal' distributions. The parameters of the initialisation functions
 are passed to the same flag separated by a coma. See [initializers.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/initializers.py) and [train.py](https://github.com/google-research/large_scale_mmdma/blob/master/lsmmdma/train.py#L138).
-- `--l1`: float (default 1e-4), hyperparameter in front of both penalty terms.
-- `--l2`: float (default 1e-4), hyperparameter in front of both distortion terms.
+- `--l1`: float (default 1e-4), hyperparameter in front of both penalty terms. Note that
+  the penalty terms are automatically scaled by 1/sqrt(p).
+- `--l2`: float (default 1e-4), hyperparameter in front of both distortion terms. Note that
+  the distortion terms are automatically scaled by 1/(n*sqrt(p)).
 - `--lr`: float (default 1e-5), learning rate.
 - `--s`: float (default 1.0), scale parameter of the RBF kernel in MMD.
 

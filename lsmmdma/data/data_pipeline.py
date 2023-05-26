@@ -134,6 +134,8 @@ def load(input_dir: str, filename: str) -> np.ndarray:
       data = np.loadtxt(my_file, delimiter='\t')
     elif file_ext == '.csv':
       data = np.loadtxt(my_file, delimiter=',')
+    elif file_ext == '.pt':
+      data = torch.load(my_file)
     else:
       try:
         data = np.loadtxt(my_file)

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Functions used in MMDMA, PyTorch implementation."""
-from typing import Optional, List
+from typing import Optional
 import numpy as np
 import pykeops
 pykeops.clean_pykeops()  # just in case old build files are still present
@@ -76,9 +76,10 @@ def dis_dual(
   Returns:
     penalty_value: torch.Tensor, scalar value.
   """
+  n = kernel.shape[0]
   distortion_value = (
       torch.matmul(embedding, embedding.t()) - kernel).norm(2)
-  return distortion_value
+  return distortion_value * 1 / n
 
 
 # Functions for MMD.
@@ -223,17 +224,16 @@ def pen_primal(param: torch.Tensor, device: torch.device) -> torch.Tensor:
   Returns:
     penalty_value: torch.Tensor, scalar value.
   """
-  low_dim = param.shape[1]
+  p, low_dim = param.shape
   identity_matrix_embedding_space = torch.eye(low_dim).to(device)
   penalty_value = (torch.matmul(param.t(), param)
                    - identity_matrix_embedding_space).norm(2)
-  return penalty_value
+  return penalty_value * 1 / np.sqrt(p)
 
 
 def dis_primal(
     input_view: torch.Tensor,
     param: torch.Tensor,
-    n_sample: int,
 ) -> torch.Tensor:
   """Computes distortion penalty for the primal formulation.
 
@@ -256,7 +256,6 @@ def dis_primal(
   Arguments:
     input_view: torch.Tensor, one of the two views.
     param: torch.Tensor, model parameters.
-    n_sample: int, sample size of entire dataset.
   Returns:
     distortion_value: torch.Tensor, scalar value.
   """
@@ -272,7 +271,7 @@ def dis_primal(
     tmp = torch.matmul(param, torch.matmul(param.t(), gram))
     prod = gram - tmp
     distortion_value = torch.sqrt(torch.trace(torch.matmul(prod, prod)))
-  return distortion_value
+  return distortion_value * 1 / (n_sample * np.sqrt(p_feature))
 
 
 # Others.

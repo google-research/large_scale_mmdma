@@ -18,23 +18,23 @@
 MMD-MA has been developped by Liu et al. 2019, Jointly Embedding Multiple
 Single-Cell Omics Measurements (https://pubmed.ncbi.nlm.nih.gov/34632462/).
 """
-
-import random
-from absl import logging
-
 from collections import defaultdict as ddict
 import dataclasses
+
+from math import ceil
+import random
+from typing import Tuple, Any, Dict, DefaultDict, List, Union
+
+from absl import logging
 from lsmmdma.initializers import initialize
 from lsmmdma.metrics import Evaluation
 import lsmmdma.mmdma_functions as mmdma_fn
-from math import ceil
 import numpy as np
 from tenacity import retry, stop_after_attempt
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.nn.parameter import Parameter
 from torch.utils import tensorboard
-from typing import Tuple, Any, Dict, DefaultDict, List, Union
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -57,6 +57,7 @@ class ModelGetterConfig:
   use_unbiased_mmd: bool = True
   window_size: int = -1
   threshold: float = 1e-3
+  amsgrad: bool = False
 
 
 class Model(nn.Module):
@@ -228,9 +229,9 @@ def loss_mmdma(
     penalty_fv = mmdma_fn.pen_primal(params[0], device)
     penalty_sv = mmdma_fn.pen_primal(params[1], device)
     distortion_fv = mmdma_fn.dis_primal(
-        first_view, params[0], n_first_view)
+        first_view, params[0])
     distortion_sv = mmdma_fn.dis_primal(
-        second_view, params[1], n_second_view)
+        second_view, params[1])
   elif cfg_model.mode == 'dual':
     penalty_fv = mmdma_fn.pen_dual(embedding_fv, params[0], device)
     penalty_sv = mmdma_fn.pen_dual(embedding_sv, params[1], device)
@@ -413,7 +414,7 @@ def _evaluate(
   if cfg_model.n_eval != 0 and i % cfg_model.n_eval == 0:
     eval_out = eval_fn.compute_all_evaluation(embeddings_fv, embeddings_sv)
     eval_out_dict = dataclasses.asdict(eval_out)
-    logging.info('Train evaluation: %s.', eval_out)
+    # logging.info('Train evaluation: %s.', eval_out)
     if workdir:
       for key, val in eval_out_dict.items():
         if key != 'no':
@@ -508,7 +509,10 @@ def train_and_evaluate(
                   device)
     model = model.to(device)
     logging.info('seed=%s', seed)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg_model.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=cfg_model.learning_rate,
+        amsgrad=cfg_model.amsgrad)
     model.train()
 
     i = 0

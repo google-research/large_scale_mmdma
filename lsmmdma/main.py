@@ -28,9 +28,9 @@ from lsmmdma.data import checkpointer
 from lsmmdma.data import data_pipeline
 from lsmmdma.metrics import Evaluation
 import numpy as np
-import torch
 import tensorflow as tf
 from tensorflow.io import gfile
+import torch
 
 # Flags for input and output.
 flags.DEFINE_string('output_dir', None, 'Output directory.')
@@ -64,6 +64,8 @@ flags.DEFINE_bool('short_eval', True,
                   'Whether or not to compute all the metrics.')
 flags.DEFINE_integer('nn', 5,
                      'Number of neighbours in Label Transfer Accuracy metric.')
+flags.DEFINE_bool('amsgrad', False,
+                  'Whether to set amsgrad to True in the optimizer.')
 
 # Stopping criterion
 flags.DEFINE_integer('ws', 0,
@@ -72,7 +74,9 @@ flags.DEFINE_integer('ws', 0,
 flags.DEFINE_float('threshold', 1e-3, 'Threshold for the stopping criterion.')
 
 # Flags to define the algorithm.
-flags.DEFINE_boolean('keops', True, 'Uses keops or not.')
+flags.DEFINE_integer('keops', 1,
+                     """Uses keops (1) or not (0). If set to -1, uses
+                     keops only if the number of samples is larger than 4000""")
 flags.DEFINE_enum('m', 'dual', ['dual', 'primal'], 'Dual or primal mode.')
 flags.DEFINE_bool('use_unbiased_mmd', True, 'Use unbiased MMD or not.')
 
@@ -172,14 +176,32 @@ def main(_):
                          'p' + str(FLAGS.p),
                          str(FLAGS.data)])
   else:
-    filename = ':'.join([filename,
-                         FLAGS.input_fv.split('.')[0]])
+    filename = ':'.join([filename, 'output'])
 
   # Chooses device.
   if torch.cuda.is_available():
     device = torch.device('cuda')
   else:
     device = 'cpu'
+
+  # Chooses to use keops or not for training.
+  if FLAGS.keops == -1:
+    if FLAGS.bs >= 4000 or (FLAGS.bs == 0 and (
+        first_view.shape[0] >= 4000 or second_view.shape[0] >= 4000)):
+      FLAGS.keops = 1
+    else:
+      FLAGS.keops = 0
+
+  # Rescales regulariser for dual.
+  if (FLAGS.m == 'dual'
+      and first_view.shape[1] == second_view.shape[1]
+      and FLAGS.kernel is False):
+    l1 = FLAGS.l1 * 1 / np.sqrt(first_view.shape[1])
+    l2 = FLAGS.l2 * 1 / np.sqrt(first_view.shape[1])
+  elif FLAGS.m == 'primal':
+    l1 = FLAGS.l1
+    l2 = FLAGS.l2
+
 
   # Prepares metrics.
   eval_fn = Evaluation(ground_truth_alignment=rd_vec,
@@ -200,13 +222,14 @@ def main(_):
       n_record=FLAGS.nr,
       learning_rate=FLAGS.lr,
       sigmas=FLAGS.s,
-      lambda1=FLAGS.l1,
-      lambda2=FLAGS.l2,
+      lambda1=l1,
+      lambda2=l2,
       pca=FLAGS.pca,
       init=FLAGS.init,
       use_unbiased_mmd=FLAGS.use_unbiased_mmd,
       window_size=FLAGS.ws,
-      threshold=FLAGS.threshold
+      threshold=FLAGS.threshold,
+      amsgrad=FLAGS.amsgrad
       )
 
   # Prepares input.
@@ -218,7 +241,7 @@ def main(_):
   if cfg_model.mode == 'dual' and not FLAGS.kernel:
     first_view = train.get_kernel(first_view)
     second_view = train.get_kernel(second_view)
-
+    
   # Runs model.
   train_fn = (time_training_loop(train.train_and_evaluate)
               if FLAGS.time else train.train_and_evaluate)

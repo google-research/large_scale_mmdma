@@ -57,7 +57,7 @@ class MMDMATest(absltest.TestCase):
         seed=2,
         low_dim=self.low_dim,
         n_iter=6,
-        keops=True,
+        keops=1,
         mode='dual',
         n_eval=5,
         n_record=5,
@@ -71,26 +71,27 @@ class MMDMATest(absltest.TestCase):
 
   def test_distortion(self):
     # n < p
-    dis_val_primal = mmdma_fn.dis_primal(self.view1, self.param1_primal,
-                                         self.n)
-    dis_val_dual = mmdma_fn.dis_dual(self.embedding1_dual, self.kernel1)
+    dis_val_primal = mmdma_fn.dis_primal(self.view1, self.param1_primal)
+    dis_val_dual = mmdma_fn.dis_dual(
+        self.embedding1_dual, self.kernel1
+        ) * 1 / np.sqrt(self.p)
 
     self.assertAlmostEqual(dis_val_primal, dis_val_dual, delta=1e-1)
 
     # n > p
     dis_val_primal = mmdma_fn.dis_primal(self.view1[:, :2],
-                                         self.param1_primal[:2, :],
-                                         self.n)
+                                         self.param1_primal[:2, :])
     kernel = mmdma_core.get_kernel(self.view1[:, :2])
     embedding = torch.matmul(kernel, self.param1_dual)
-    dis_val_dual = mmdma_fn.dis_dual(embedding, kernel)
+    dis_val_dual = mmdma_fn.dis_dual(embedding, kernel) * 1 / np.sqrt(2)
 
     self.assertAlmostEqual(dis_val_primal, dis_val_dual, delta=1e-3)
 
   def test_penalty(self):
     pen_val_primal = mmdma_fn.pen_primal(self.param1_primal, self.device)
     pen_val_dual = mmdma_fn.pen_dual(
-        self.embedding1_dual, self.param1_dual, self.device)
+        self.embedding1_dual, self.param1_dual, self.device
+        ) * 1 / np.sqrt(self.p)
 
     self.assertAlmostEqual(pen_val_primal, pen_val_dual, delta=1e-3)
 
@@ -114,12 +115,18 @@ class MMDMATest(absltest.TestCase):
     loss_dual = [0]*2
     loss_primal = [0]*2
     cfg_model = self.cfg_model
-    for i, keops in enumerate([True, False]):
+    l1 = cfg_model.lambda1
+    l2 = cfg_model.lambda2
+    for i, keops in enumerate([1, 0]):
       cfg_model.mode = 'dual'
+      cfg_model.lambda1 = l1 * 1 / np.sqrt(self.p)
+      cfg_model.lambda2 = l2 * 1 / np.sqrt(self.p)
       loss_dual[i] = mmdma_core.loss_mmdma(
           [self.param1_dual, self.param2_dual], self.kernel1, self.kernel2,
           self.n, self.n, cfg_model, keops, self.device)[0]
       cfg_model.mode = 'primal'
+      cfg_model.lambda1 = l1
+      cfg_model.lambda2 = l2
       loss_primal[i] = mmdma_core.loss_mmdma(
           [self.param1_primal, self.param2_primal], self.view1, self.view2,
           self.n, self.n, cfg_model, keops, self.device)[0]
@@ -151,7 +158,7 @@ class MMDMATest(absltest.TestCase):
         loss = []
         mmd = []
         res = []
-        for keops in [True, False]:
+        for keops in [1, 0]:
           cfg_model.keops = keops
           # Runs model.
           if mode == 'dual':
@@ -242,7 +249,7 @@ class MMDMATest(absltest.TestCase):
     self.assertNotEqual(out.lta, -1)
 
   def test_evaluation_long(self):
-    n = 10
+    n = 30
     p = 2
     view1 = torch.FloatTensor(np.random.randn(n, p))
     view2 = torch.FloatTensor(np.random.randn(n, p)) + 2
@@ -252,7 +259,7 @@ class MMDMATest(absltest.TestCase):
     out = eval_fn.compute_all_evaluation(view1, view2)
 
     self.assertNotEqual(out.top5, -1)
-    self.assertNotEqual(out.no, -1)
+    self.assertNotEqual(out.no[0], -1)
 
   def test_evaluation_foscttm(self):
     n = 10
@@ -264,7 +271,7 @@ class MMDMATest(absltest.TestCase):
         ground_truth_alignment=rd_vec, device=self.device, short=False)
     out = eval_fn.compute_all_evaluation(view1, view2)
     foscttm_keops = eval_fn._foscttm_keops(view1, view2)
-    self.assertAlmostEqual(foscttm_keops, out.foscttm, delta=-3)
+    self.assertAlmostEqual(foscttm_keops, out.foscttm, delta=1e-3)
 
 if __name__ == '__main__':
   absltest.main()
