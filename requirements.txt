@@ -1,6 +1,6 @@
 absl-py
 numpy
-torch>=1.10
+torch
 tensorflow-cpu
 pykeops
 typing
