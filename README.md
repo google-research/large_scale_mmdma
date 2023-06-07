@@ -66,7 +66,10 @@ $ !pip install lsmmdma
 ```
 
 The KeOps library might require to be installed separately in advance, according
-to the given [instructions](http://www.kernel-operations.io/keops/python/installation.html).
+to the given [instructions](http://www.kernel-operations.io/keops/python/installation.html). Typically, in Google Colab one would run this command before installing `lsmmmdma`:
+```bash
+$ !pip install pykeops
+```
 
 ## Command line instructions<a id="commandline"></a>
 
